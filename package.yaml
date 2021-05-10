@@ -1,0 +1,93 @@
+name:                event-bank
+version:             0.1.0.0
+license:             BSD3
+author:              "Cyrill Brunner, Dominic Richner"
+copyright:           "2021 CB DR"
+
+extra-source-files:
+  - README.md
+  - ChangeLog.md
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+description:         Please see the README
+
+dependencies:
+  - aeson
+  - name: base
+    version: ">= 4.7 && < 5"
+    mixin:
+    - hiding (Prelude)
+  - elm-street
+  - filepath
+  - relude ^>= 1.0
+  - scotty
+  - signal
+  - typed-process
+  - wai
+  - wai-extra
+
+default-extensions:
+  - BlockArguments
+  - DataKinds
+  - DeriveDataTypeable
+  - DeriveGeneric
+  - DerivingStrategies
+  - DerivingVia
+  - LambdaCase
+  - NamedFieldPuns
+  - OverloadedStrings
+  - ScopedTypeVariables
+  - TypeApplications
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  # I'd love to go -Werror, but it's too much.
+  # - -Werror
+  # Some things from -Weverything make a lot of sense.
+  - -Wmonomorphism-restriction
+  - -Wmissing-local-signatures
+  - -Wmissing-export-lists
+  - -Widentities
+  - -Wpartial-fields
+  - -Wincomplete-record-updates
+  # # Warnings only, so --file-watch can work better.
+  # - -Wwarn=deprecations
+  # - -Wwarn=unused-top-binds
+  # - -Wwarn=missing-signatures
+  # - -fshow-warning-groups
+
+library:
+  source-dirs: src
+
+executables:
+  event-bank-exe:
+    main:                Main.hs
+    source-dirs:         app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - event-bank
+      - cmdargs
+
+tests:
+  event-bank-test:
+    main:                Main.hs
+    source-dirs:         test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - aeson
+      - event-bank
+      - hspec
+      - hspec-wai
+      - hspec-wai-json
+      - http-types
+    build-tools:
+      - hspec-discover

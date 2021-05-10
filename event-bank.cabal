@@ -1,0 +1,102 @@
+cabal-version: 2.0
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 2c083da3ba91012943288d71e6c4f17b209e94a92ab75bbb405d62e9ae686361
+
+name:           event-bank
+version:        0.1.0.0
+description:    Please see the README
+author:         Cyrill Brunner, Dominic Richner
+maintainer:     Cyrill Brunner, Dominic Richner
+copyright:      2021 CB DR
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+library
+  exposed-modules:
+      Lib
+      Prelude
+  other-modules:
+      Paths_event_bank
+  hs-source-dirs:
+      src
+  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , elm-street
+    , filepath
+    , relude >=1.0 && <1.1
+    , scotty
+    , signal
+    , typed-process
+    , wai
+    , wai-extra
+  mixins:
+      base hiding (Prelude)
+  default-language: Haskell2010
+
+executable event-bank-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_event_bank
+  hs-source-dirs:
+      app
+  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , cmdargs
+    , elm-street
+    , event-bank
+    , filepath
+    , relude >=1.0 && <1.1
+    , scotty
+    , signal
+    , typed-process
+    , wai
+    , wai-extra
+  mixins:
+      base hiding (Prelude)
+  default-language: Haskell2010
+
+test-suite event-bank-test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  other-modules:
+      ExampleSpec
+      Paths_event_bank
+  hs-source-dirs:
+      test
+  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      hspec-discover:hspec-discover
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , elm-street
+    , event-bank
+    , filepath
+    , hspec
+    , hspec-wai
+    , hspec-wai-json
+    , http-types
+    , relude >=1.0 && <1.1
+    , scotty
+    , signal
+    , typed-process
+    , wai
+    , wai-extra
+  mixins:
+      base hiding (Prelude)
+  default-language: Haskell2010
