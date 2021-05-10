@@ -3,11 +3,10 @@ module Main
   )
 where
 
-import           Control.Concurrent     (forkIO, killThread, ThreadId)
+import           Control.Concurrent     (forkIO, killThread)
 import           Data.Text              as T
 import qualified Data.Text.IO           as TIO
 import           Elm                    (defaultSettings, generateElm)
-import           GHC.IO.Handle          (hDuplicate)
 import           Lib                    (ElmTypes, runApp)
 import           System.Console.CmdArgs
 import           System.Environment     (getEnvironment)
@@ -42,28 +41,21 @@ generatePortData frontendFolder apiPort = TIO.writeFile (frontendFolder </> "Api
       , "apiPort = " <> show apiPort
       ]
 
-startFrontend :: String -> Int -> MVar a -> IO ((ThreadId, MVar Handle))
+startFrontend :: String -> Int -> MVar a -> IO ()
 startFrontend frontendFolder frontendPort endFrontend = do
   oldEnv <- getEnvironment
 
-  outHandle <- hDuplicate stdout
-  errHandle <- hDuplicate stderr
-
   let command =
         setEnv (("PORT", show frontendPort) : oldEnv) $
-        setStdin createPipe $
-        setStdout (useHandleClose outHandle) $
-        setStderr (useHandleClose errHandle) $
+        setStdout inherit $
+        setStderr inherit $
+        setStdin nullStream $
+        setDelegateCtlc True $
         setWorkingDir frontendFolder $
-        shell "npm run start"
+        shell "npm run start -- --no-browser"
 
-  inHandle <- newEmptyMVar
-
-  threadId <- forkIO $ withProcessTerm command \p -> do
-    putMVar inHandle $ getStdin p
+  withProcessTerm command $ \_ -> do
     void $ takeMVar endFrontend
-
-  return (threadId, inHandle)
 
 main :: IO ()
 main = do
@@ -74,8 +66,7 @@ main = do
   frontendMVar <- newEmptyMVar
 
   putTextLn "Starting frontend..."
-  (frontendThread, frontendInMVar) <- startFrontend frontend_folder frontend_port frontendMVar
-  frontendIn <- takeMVar frontendInMVar
+  frontendThread <- forkIO $ startFrontend frontend_folder frontend_port frontendMVar
 
   putTextLn "Starting backend..."
   scottyThread <- forkIO $ runApp server_port
@@ -85,20 +76,19 @@ main = do
         putMVar frontendMVar ()
         killThread frontendThread
         killThread scottyThread
+
         putStrLn "Goodbye!"
         if goodTerminate then exitSuccess else exitFailure
 
       loop :: IO ()
       loop = do
-        putText "Type exit to stop: "
-        hFlush stdout
-        line <- getLine
+        -- TODO Telling frontend to die used to work. Now without Ctrl-c it would leave npm running.
+        -- putText "Type exit to stop: "
+        -- hFlush stdout
+        -- line <- getLine
+        void getLine
 
-        when (line == "exit") $ terminate True
-
-        case "front:" `T.stripPrefix` line of
-          Nothing  -> pass
-          Just cmd -> TIO.hPutStrLn frontendIn cmd
+        -- when (line == "exit") $ throwIO UserInterrupt
 
         loop
 
