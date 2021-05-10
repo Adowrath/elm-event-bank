@@ -9,6 +9,7 @@ import           Lib                    (ElmTypes, runApp)
 import           System.Console.CmdArgs
 import           System.Environment     (getEnvironment)
 import           System.FilePath        ((</>))
+import           System.IO              (hClose)
 import           System.Process.Typed
 import           System.Signal          (installHandler, sigINT, sigTERM)
 import           Web.Browser
@@ -63,6 +64,7 @@ main = do
         putMVar frontendMVar ()
         killThread frontendThread
         killThread scottyThread
+        hClose stdin
 
         putStrLn "Goodbye!"
         if goodTerminate then exitSuccess else exitFailure

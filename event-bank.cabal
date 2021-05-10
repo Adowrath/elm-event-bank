@@ -1,10 +1,10 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 65a059f8c6ea4de84fac4869b203866ec899351bad1a87eddc79cfe16ef31501
+-- hash: e564d66c9c94e135ccba07c7afe9b9f59242ef42dc82bc845bcca9f01816b33c
 
 name:           event-bank
 version:        0.2.0.0
@@ -27,7 +27,18 @@ library
       Paths_event_bank
   hs-source-dirs:
       src
-  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveDataTypeable
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      LambdaCase
+      NamedFieldPuns
+      OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
   ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates
   build-depends:
       aeson
@@ -37,7 +48,7 @@ library
     , http-client
     , http-reverse-proxy
     , open-browser
-    , relude >=1.0 && <1.1
+    , relude ==1.0.*
     , scotty
     , signal
     , typed-process
@@ -53,7 +64,18 @@ executable event-bank-exe
       Paths_event_bank
   hs-source-dirs:
       app
-  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveDataTypeable
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      LambdaCase
+      NamedFieldPuns
+      OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
   ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
@@ -65,7 +87,7 @@ executable event-bank-exe
     , http-client
     , http-reverse-proxy
     , open-browser
-    , relude >=1.0 && <1.1
+    , relude ==1.0.*
     , scotty
     , signal
     , typed-process
@@ -83,7 +105,18 @@ test-suite event-bank-test
       Paths_event_bank
   hs-source-dirs:
       test
-  default-extensions: BlockArguments DataKinds DeriveDataTypeable DeriveGeneric DerivingStrategies DerivingVia LambdaCase NamedFieldPuns OverloadedStrings ScopedTypeVariables TypeApplications
+  default-extensions:
+      BlockArguments
+      DataKinds
+      DeriveDataTypeable
+      DeriveGeneric
+      DerivingStrategies
+      DerivingVia
+      LambdaCase
+      NamedFieldPuns
+      OverloadedStrings
+      ScopedTypeVariables
+      TypeApplications
   ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
@@ -100,7 +133,7 @@ test-suite event-bank-test
     , http-reverse-proxy
     , http-types
     , open-browser
-    , relude >=1.0 && <1.1
+    , relude ==1.0.*
     , scotty
     , signal
     , typed-process
