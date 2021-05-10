@@ -4,10 +4,10 @@ cabal-version: 2.0
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2c083da3ba91012943288d71e6c4f17b209e94a92ab75bbb405d62e9ae686361
+-- hash: 65a059f8c6ea4de84fac4869b203866ec899351bad1a87eddc79cfe16ef31501
 
 name:           event-bank
-version:        0.1.0.0
+version:        0.2.0.0
 description:    Please see the README
 author:         Cyrill Brunner, Dominic Richner
 maintainer:     Cyrill Brunner, Dominic Richner
@@ -34,6 +34,9 @@ library
     , base >=4.7 && <5
     , elm-street
     , filepath
+    , http-client
+    , http-reverse-proxy
+    , open-browser
     , relude >=1.0 && <1.1
     , scotty
     , signal
@@ -59,6 +62,9 @@ executable event-bank-exe
     , elm-street
     , event-bank
     , filepath
+    , http-client
+    , http-reverse-proxy
+    , open-browser
     , relude >=1.0 && <1.1
     , scotty
     , signal
@@ -90,7 +96,10 @@ test-suite event-bank-test
     , hspec
     , hspec-wai
     , hspec-wai-json
+    , http-client
+    , http-reverse-proxy
     , http-types
+    , open-browser
     , relude >=1.0 && <1.1
     , scotty
     , signal

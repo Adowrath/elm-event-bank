@@ -1,37 +1,43 @@
 module Lib (runApp, app, ElmTypes) where
 
-import           Control.Concurrent.MVar as M
-import           Data.Aeson              (FromJSON, ToJSON, Value (..), object,
-                                          (.=))
-import           Elm                     (Elm, ElmStreet (..))
-import           Network.Wai             (Application, mapResponseHeaders)
-import Network.Wai.Middleware.RequestLogger
-import qualified Web.Scotty              as S
+import           Control.Concurrent.MVar              (modifyMVar)
+import           Data.Aeson                           (FromJSON, ToJSON,
+                                                       Value (..), object, (.=))
+import           Elm                                  (Elm, ElmStreet (..))
+import           Network.HTTP.Client                  (defaultManagerSettings,
+                                                       newManager)
+import           Network.HTTP.ReverseProxy            as RP
+import           Network.Wai                          (Application,
+                                                       mapResponseHeaders,
+                                                       pathInfo)
+import           Network.Wai.Middleware.RequestLogger
+import qualified Web.Scotty                           as S
 
 app' :: MVar Int -> S.ScottyM ()
 app' idStore = do
-  -- TODO Better middleware for CORS
-  -- TODO Look into proxying frontend to unify URLs
-  S.middleware \oldApp req respond -> oldApp req $ respond . mapResponseHeaders (("Access-Control-Allow-Origin", "*") :)
-
-  S.get "/hello" do
-    S.text "hello"
-
-  S.get "/some-json" do
-    S.json $ object ["foo" .= Number 23, "bar" .= Number 42]
-
   S.get "/api/example" do
-    idToSend <- liftIO $ M.modifyMVar idStore \i -> return (i+1, i)
+    idToSend <- liftIO $ modifyMVar idStore \i -> return (i+1, i)
     S.json $ ExampleType idToSend "No Text."
 
 app :: MVar Int -> IO Application
 app = S.scottyApp . app'
 
-runApp :: Int -> IO ()
-runApp port = do
-  idStore <- M.newMVar 0
+runApp :: Int -> Int -> IO ()
+runApp port frontendPort = do
+  idStore <- newMVar 0
+  manager <- newManager defaultManagerSettings
+
   S.scotty port do
+    let proxyApp = RP.waiProxyTo
+            (const $ return $ RP.WPRProxyDest (RP.ProxyDest "localhost" frontendPort))
+            RP.defaultOnExc
+            manager
+
     S.middleware logStdoutDev
+    S.middleware \oldApp req respond -> case pathInfo req of
+                                            ("api":_) -> oldApp req respond
+                                            _         -> proxyApp req respond
+
     app' idStore
 
 data ExampleType = ExampleType

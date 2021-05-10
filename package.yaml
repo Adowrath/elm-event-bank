@@ -1,5 +1,5 @@
 name:                event-bank
-version:             0.1.0.0
+version:             0.2.0.0
 license:             BSD3
 author:              "Cyrill Brunner, Dominic Richner"
 copyright:           "2021 CB DR"
@@ -21,6 +21,9 @@ dependencies:
     - hiding (Prelude)
   - elm-street
   - filepath
+  - http-client
+  - http-reverse-proxy
+  - open-browser
   - relude ^>= 1.0
   - scotty
   - signal

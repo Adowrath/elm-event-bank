@@ -1,7 +1,6 @@
 module Main exposing (..)
 
 import Api.Decoder exposing (decodeExampleType)
-import Api.Port exposing (apiPort)
 import Api.Types exposing (ExampleType)
 import Browser
 import Html exposing (Html, button, div, h1, img, li, text, ul)
@@ -50,7 +49,7 @@ update msg model =
 loadNextExample : Cmd Msg
 loadNextExample =
     Http.get
-        { url = "//localhost:" ++ String.fromInt apiPort ++ "/api/example"
+        { url = "/api/example"
         , expect = Http.expectJson NextReceived decodeExampleType
         }
 
@@ -76,7 +75,7 @@ body model =
     let
         f : ExampleType -> Html Msg
         f example =
-            li [] [ text (String.fromInt example.first ++ " with message " ++ example.second) ]
+            li [] [ text (String.fromInt example.first ++ " with message: " ++ example.second) ]
 
         exampleList : List (Html Msg)
         exampleList =

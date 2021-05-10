@@ -4,8 +4,6 @@ module Main
 where
 
 import           Control.Concurrent     (forkIO, killThread)
-import           Data.Text              as T
-import qualified Data.Text.IO           as TIO
 import           Elm                    (defaultSettings, generateElm)
 import           Lib                    (ElmTypes, runApp)
 import           System.Console.CmdArgs
@@ -13,6 +11,7 @@ import           System.Environment     (getEnvironment)
 import           System.FilePath        ((</>))
 import           System.Process.Typed
 import           System.Signal          (installHandler, sigINT, sigTERM)
+import           Web.Browser
 
 data StartArgs = StartArgs
   { server_port     :: Int
@@ -24,22 +23,11 @@ data StartArgs = StartArgs
 startArgs :: StartArgs
 startArgs =
   StartArgs
-    { server_port = 8081 &= help "Port of the API server"
-    , frontend_port = 8080 &= help "Port of the frontend"
-    , frontend_folder = "frontend/src" &= help "Folder for frontend source files"
+    { server_port = 8081 &= typ "PORT" &= help "Port of the API server"
+    , frontend_port = 8080 &= typ "PORT" &= help "Port of the frontend"
+    , frontend_folder = "frontend" &= typDir &= help "Folder for the frontend"
     }
     &= summary "Event Bank"
-
-generatePortData :: String -> Int -> IO ()
-generatePortData frontendFolder apiPort = TIO.writeFile (frontendFolder </> "Api" </> "Port.elm") (T.unlines modDefinition)
-  where
-    modDefinition :: [Text]
-    modDefinition =
-      [ "module Api.Port exposing (apiPort)"
-      , ""
-      , "apiPort : Int"
-      , "apiPort = " <> show apiPort
-      ]
 
 startFrontend :: String -> Int -> MVar a -> IO ()
 startFrontend frontendFolder frontendPort endFrontend = do
@@ -60,8 +48,7 @@ startFrontend frontendFolder frontendPort endFrontend = do
 main :: IO ()
 main = do
   StartArgs{server_port, frontend_port, frontend_folder} <- cmdArgs startArgs
-  generateElm @ElmTypes $ defaultSettings frontend_folder ["Api"]
-  generatePortData frontend_folder server_port
+  generateElm @ElmTypes $ defaultSettings (frontend_folder </> "src") ["Api"]
 
   frontendMVar <- newEmptyMVar
 
@@ -69,7 +56,7 @@ main = do
   frontendThread <- forkIO $ startFrontend frontend_folder frontend_port frontendMVar
 
   putTextLn "Starting backend..."
-  scottyThread <- forkIO $ runApp server_port
+  scottyThread <- forkIO $ runApp server_port frontend_port
 
   let terminate :: Bool -> IO ()
       terminate goodTerminate = do
@@ -94,5 +81,8 @@ main = do
 
   installHandler sigTERM $ const (terminate False)
   installHandler sigINT $ const (terminate False)
+
+  void $ openBrowser "http://localhost:8081"
+  putStrLn "Open combined frontend under: http://localhost:8081"
 
   loop
