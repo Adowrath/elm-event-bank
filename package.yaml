@@ -15,34 +15,50 @@ description:         Please see the README
 
 dependencies:
   - aeson
-  - name: base
-    version: ">= 4.7 && < 5"
-    mixin:
-    - hiding (Prelude)
+  - base >= 4.7 && < 5
   - elm-street
   - filepath
   - http-client
   - http-reverse-proxy
+  - http-types
+  - jose-jwt
   - open-browser
+  - polysemy
+  - polysemy-plugin
   - relude ^>= 1.0
   - scotty
   - signal
+  - time
   - typed-process
+  - uuid
+  - validation-selective
   - wai
   - wai-extra
 
 default-extensions:
   - BlockArguments
   - DataKinds
+  - DeriveAnyClass
   - DeriveDataTypeable
   - DeriveGeneric
   - DerivingStrategies
   - DerivingVia
+  - FlexibleContexts
+  - GADTs
+  - GeneralizedNewtypeDeriving
   - LambdaCase
+  - MultiParamTypeClasses
+  - MultiWayIf
   - NamedFieldPuns
+  - NoImplicitPrelude
   - OverloadedStrings
+  - PolyKinds
   - ScopedTypeVariables
+  - StandaloneDeriving
   - TypeApplications
+  - TypeFamilies
+  - TypeFamilyDependencies
+  - TypeOperators
 
 ghc-options:
   - -Wall
@@ -60,7 +76,8 @@ ghc-options:
   # - -Wwarn=deprecations
   # - -Wwarn=unused-top-binds
   # - -Wwarn=missing-signatures
-  # - -fshow-warning-groups
+  - -fshow-warning-groups
+  - -fplugin=Polysemy.Plugin
 
 library:
   source-dirs: src

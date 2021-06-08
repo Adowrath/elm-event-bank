@@ -1,10 +1,10 @@
-cabal-version: 2.0
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e564d66c9c94e135ccba07c7afe9b9f59242ef42dc82bc845bcca9f01816b33c
+-- hash: 3341704ebcea12af52b0eb24c314eec6c25bd05743820d56e86d7cf10386994e
 
 name:           event-bank
 version:        0.2.0.0
@@ -21,8 +21,12 @@ extra-source-files:
 
 library
   exposed-modules:
-      Lib
-      Prelude
+      Bank.Auth
+      Bank.Data
+      Bank.Entrypoint
+      Bank.Jwt
+      Bank.Types
+      Bank.WebHelpers
   other-modules:
       Paths_event_bank
   hs-source-dirs:
@@ -30,16 +34,28 @@ library
   default-extensions:
       BlockArguments
       DataKinds
+      DeriveAnyClass
       DeriveDataTypeable
       DeriveGeneric
       DerivingStrategies
       DerivingVia
+      FlexibleContexts
+      GADTs
+      GeneralizedNewtypeDeriving
       LambdaCase
+      MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
+      NoImplicitPrelude
       OverloadedStrings
+      PolyKinds
       ScopedTypeVariables
+      StandaloneDeriving
       TypeApplications
-  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates
+      TypeFamilies
+      TypeFamilyDependencies
+      TypeOperators
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -fshow-warning-groups -fplugin=Polysemy.Plugin
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -47,15 +63,20 @@ library
     , filepath
     , http-client
     , http-reverse-proxy
+    , http-types
+    , jose-jwt
     , open-browser
+    , polysemy
+    , polysemy-plugin
     , relude ==1.0.*
     , scotty
     , signal
+    , time
     , typed-process
+    , uuid
+    , validation-selective
     , wai
     , wai-extra
-  mixins:
-      base hiding (Prelude)
   default-language: Haskell2010
 
 executable event-bank-exe
@@ -67,16 +88,28 @@ executable event-bank-exe
   default-extensions:
       BlockArguments
       DataKinds
+      DeriveAnyClass
       DeriveDataTypeable
       DeriveGeneric
       DerivingStrategies
       DerivingVia
+      FlexibleContexts
+      GADTs
+      GeneralizedNewtypeDeriving
       LambdaCase
+      MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
+      NoImplicitPrelude
       OverloadedStrings
+      PolyKinds
       ScopedTypeVariables
+      StandaloneDeriving
       TypeApplications
-  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
+      TypeFamilies
+      TypeFamilyDependencies
+      TypeOperators
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -fshow-warning-groups -fplugin=Polysemy.Plugin -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -86,15 +119,20 @@ executable event-bank-exe
     , filepath
     , http-client
     , http-reverse-proxy
+    , http-types
+    , jose-jwt
     , open-browser
+    , polysemy
+    , polysemy-plugin
     , relude ==1.0.*
     , scotty
     , signal
+    , time
     , typed-process
+    , uuid
+    , validation-selective
     , wai
     , wai-extra
-  mixins:
-      base hiding (Prelude)
   default-language: Haskell2010
 
 test-suite event-bank-test
@@ -108,16 +146,28 @@ test-suite event-bank-test
   default-extensions:
       BlockArguments
       DataKinds
+      DeriveAnyClass
       DeriveDataTypeable
       DeriveGeneric
       DerivingStrategies
       DerivingVia
+      FlexibleContexts
+      GADTs
+      GeneralizedNewtypeDeriving
       LambdaCase
+      MultiParamTypeClasses
+      MultiWayIf
       NamedFieldPuns
+      NoImplicitPrelude
       OverloadedStrings
+      PolyKinds
       ScopedTypeVariables
+      StandaloneDeriving
       TypeApplications
-  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -threaded -rtsopts -with-rtsopts=-N
+      TypeFamilies
+      TypeFamilyDependencies
+      TypeOperators
+  ghc-options: -Wall -Wcompat -Wmonomorphism-restriction -Wmissing-local-signatures -Wmissing-export-lists -Widentities -Wpartial-fields -Wincomplete-record-updates -fshow-warning-groups -fplugin=Polysemy.Plugin -threaded -rtsopts -with-rtsopts=-N
   build-tool-depends:
       hspec-discover:hspec-discover
   build-depends:
@@ -132,13 +182,17 @@ test-suite event-bank-test
     , http-client
     , http-reverse-proxy
     , http-types
+    , jose-jwt
     , open-browser
+    , polysemy
+    , polysemy-plugin
     , relude ==1.0.*
     , scotty
     , signal
+    , time
     , typed-process
+    , uuid
+    , validation-selective
     , wai
     , wai-extra
-  mixins:
-      base hiding (Prelude)
   default-language: Haskell2010

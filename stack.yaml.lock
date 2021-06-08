@@ -25,6 +25,20 @@ packages:
       sha256: ead687d39d06c841de36fc214402ad4389e8837284485cfe52d975f51b274e81
   original:
     hackage: relude-1.0.0.1
+- completed:
+    hackage: polysemy-1.5.0.0@sha256:7edb723e7f703fe273a40e43fe33f6e8f7659fe60759e8698def1481262d314d,6246
+    pantry-tree:
+      size: 4438
+      sha256: 7b7d379751f79f0e0e5afcdf3d8092e5b8e04515710f21f514aa8f29ce4835f4
+  original:
+    hackage: polysemy-1.5.0.0
+- completed:
+    hackage: polysemy-plugin-0.3.0.0@sha256:22e7553d0fddb48d9484ba1c71d2ed825213fcb214866d9b502ee02bfb960cb4,3121
+    pantry-tree:
+      size: 1162
+      sha256: 8d0bbea846d4410b769687daa8595ff1349efd02c1ab528a857883388dd2db45
+  original:
+    hackage: polysemy-plugin-0.3.0.0
 snapshots:
 - completed:
     size: 567241

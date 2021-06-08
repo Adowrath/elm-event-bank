@@ -3,6 +3,8 @@
 
 module ExampleSpec (spec) where
 
+import           Relude
+
 import           Data.Aeson                (Value (..), object, (.=))
 import           Network.HTTP.Types.Header
 import           Test.Hspec

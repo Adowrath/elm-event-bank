@@ -1,8 +1,8 @@
 module Main exposing (..)
 
-import Api.Decoder exposing (decodeExampleType)
-import Api.Types exposing (ExampleType)
 import Browser
+import Generated.Decoder
+import Generated.Types
 import Html exposing (Html, button, div, h1, img, li, text, ul)
 import Html.Attributes exposing (src)
 import Html.Events exposing (onClick)
@@ -14,7 +14,7 @@ import Http
 
 
 type alias Model =
-    { examples : List ExampleType }
+    { examples : List Int }
 
 
 init : ( Model, Cmd Msg )
@@ -23,12 +23,17 @@ init =
 
 
 
+{-
+
+   NOTE: Use Json.Decode.field for walking into the "result" field
+
+-}
 ---- UPDATE ----
 
 
 type Msg
     = RequestNext
-    | NextReceived (Result Http.Error ExampleType)
+    | NextReceived (Result Http.Error Int)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -50,7 +55,7 @@ loadNextExample : Cmd Msg
 loadNextExample =
     Http.get
         { url = "/api/example"
-        , expect = Http.expectJson NextReceived decodeExampleType
+        , expect = Http.expectJson NextReceived undefined
         }
 
 

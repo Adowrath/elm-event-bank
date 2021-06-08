@@ -3,9 +3,15 @@ module Main
   )
 where
 
+import           Bank.Data              (UserData)
+import           Bank.Entrypoint        (ElmTypes, runApp)
+import           Bank.Jwt               (JwtAccess, runRealJwt)
 import           Control.Concurrent     (forkIO, killThread)
 import           Elm                    (defaultSettings, generateElm)
-import           Lib                    (ElmTypes, runApp)
+import           Jose.Jwk               as J
+import           Jose.Jwt               as J
+import           Polysemy               as P
+import           Relude
 import           System.Console.CmdArgs
 import           System.Environment     (getEnvironment)
 import           System.FilePath        ((</>))
@@ -19,7 +25,7 @@ data StartArgs = StartArgs
   , frontend_port   :: Int
   , frontend_folder :: String
   }
-  deriving (Show, Data, Typeable)
+  deriving stock (Show, Data, Typeable)
 
 startArgs :: StartArgs
 startArgs =
@@ -39,17 +45,31 @@ startFrontend frontendFolder frontendPort endFrontend = do
         setStdout inherit $
         setStderr inherit $
         setStdin nullStream $
-        setDelegateCtlc True $
         setWorkingDir frontendFolder $
         shell "npm run start -- --no-browser"
 
   withProcessTerm command $ \_ -> do
     void $ takeMVar endFrontend
 
+runServer :: Sem '[ Embed IO, JwtAccess, UserData ] a -> IO a
+runServer server = do
+  let keys :: [J.Jwk]
+      keys = [] -- TODO
+      encoding :: J.JwtEncoding
+      encoding = encoding
+
+  server
+    & runUserDataInMemory
+    & runRealJwt keys encoding
+    & P.runM
+
+runUserDataInMemory :: a
+runUserDataInMemory = runUserDataInMemory
+
 main :: IO ()
 main = do
   StartArgs{server_port, frontend_port, frontend_folder} <- cmdArgs startArgs
-  generateElm @ElmTypes $ defaultSettings (frontend_folder </> "src") ["Api"]
+  generateElm @ElmTypes $ defaultSettings (frontend_folder </> "src") ["Generated"]
 
   frontendMVar <- newEmptyMVar
 
@@ -57,7 +77,7 @@ main = do
   frontendThread <- forkIO $ startFrontend frontend_folder frontend_port frontendMVar
 
   putTextLn "Starting backend..."
-  scottyThread <- forkIO $ runApp server_port frontend_port
+  scottyThread <- forkIO $ runApp server_port frontend_port runServer -- TODO
 
   let terminate :: Bool -> IO ()
       terminate goodTerminate = do
@@ -84,7 +104,7 @@ main = do
   installHandler sigTERM $ const (terminate False)
   installHandler sigINT $ const (terminate False)
 
-  void $ openBrowser "http://localhost:8081"
-  putStrLn "Open combined frontend under: http://localhost:8081"
+  void $ openBrowser $ "http://localhost:" <> show server_port
+  putStrLn $ "Open combined frontend under: http://localhost:" <> show server_port
 
   loop
