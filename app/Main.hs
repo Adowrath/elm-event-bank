@@ -7,7 +7,9 @@ import           Bank.Data              (UserData)
 import           Bank.Entrypoint        (ElmTypes, runApp)
 import           Bank.Jwt               (JwtAccess, runRealJwt)
 import           Control.Concurrent     (forkIO, killThread)
+import           Data.Aeson             as A
 import           Elm                    (defaultSettings, generateElm)
+import           Jose.Jwa               as J
 import           Jose.Jwk               as J
 import           Jose.Jwt               as J
 import           Polysemy               as P
@@ -24,6 +26,7 @@ data StartArgs = StartArgs
   { server_port     :: Int
   , frontend_port   :: Int
   , frontend_folder :: String
+  , key_file        :: String
   }
   deriving stock (Show, Data, Typeable)
 
@@ -33,6 +36,7 @@ startArgs =
     { server_port = 8081 &= typ "PORT" &= help "Port of the API server"
     , frontend_port = 8080 &= typ "PORT" &= help "Port of the frontend"
     , frontend_folder = "frontend" &= typDir &= help "Folder for the frontend"
+    , key_file = "secrets/jwk.sig" &= typFile &= help "Location of JWK key file, needs to be RS512"
     }
     &= summary "Event Bank"
 
@@ -51,12 +55,14 @@ startFrontend frontendFolder frontendPort endFrontend = do
   withProcessTerm command $ \_ -> do
     void $ takeMVar endFrontend
 
-runServer :: Sem '[ Embed IO, JwtAccess, UserData ] a -> IO a
-runServer server = do
+runServer :: FilePath -> Sem '[ UserData, JwtAccess, Embed IO ] a -> IO a
+runServer key_file server = join $ do
+  jwkParseResult <- first toText <$> A.eitherDecodeFileStrict' @J.Jwk key_file
+
   let keys :: [J.Jwk]
-      keys = [] -- TODO
+      keys = [either (error . ("Invalid JWK file: " <>)) id jwkParseResult]
       encoding :: J.JwtEncoding
-      encoding = encoding
+      encoding = J.JwsEncoding J.RS512
 
   server
     & runUserDataInMemory
@@ -68,7 +74,7 @@ runUserDataInMemory = runUserDataInMemory
 
 main :: IO ()
 main = do
-  StartArgs{server_port, frontend_port, frontend_folder} <- cmdArgs startArgs
+  StartArgs{server_port, frontend_port, frontend_folder, key_file} <- cmdArgs startArgs
   generateElm @ElmTypes $ defaultSettings (frontend_folder </> "src") ["Generated"]
 
   frontendMVar <- newEmptyMVar
@@ -77,7 +83,7 @@ main = do
   frontendThread <- forkIO $ startFrontend frontend_folder frontend_port frontendMVar
 
   putTextLn "Starting backend..."
-  scottyThread <- forkIO $ runApp server_port frontend_port runServer -- TODO
+  scottyThread <- forkIO $ runApp server_port frontend_port $ runServer key_file
 
   let terminate :: Bool -> IO ()
       terminate goodTerminate = do

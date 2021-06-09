@@ -27,10 +27,10 @@ app' = do
   S.post "/api/auth/logout" $ Auth.authenticate Auth.logout
   S.get "/api/auth/validate" $ Auth.authenticate $ const $ answerOk True
 
-app :: (Members '[Data.UserData, Jwt.JwtAccess] r, MonadIO (Sem r)) => (Sem r Response -> IO Response) -> IO Application
+app :: (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO Application
 app runResponse = S.scottyAppT runResponse app'
 
-runApp :: (Members '[Data.UserData, Jwt.JwtAccess] r, MonadIO (Sem r)) => Int -> Int -> (Sem r Response -> IO Response) -> IO ()
+runApp :: Int -> Int -> (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO ()
 runApp port frontendPort runResponse = do
   manager <- newManager defaultManagerSettings
 
