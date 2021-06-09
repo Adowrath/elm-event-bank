@@ -1,6 +1,6 @@
 module Bank.Entrypoint
   ( runApp,
-    app,
+    waiApp,
     ElmTypes,
   )
 where
@@ -20,15 +20,15 @@ import           Polysemy
 import           Relude
 import qualified Web.Scotty.Trans                     as S
 
-app' :: (Members '[Data.UserData, Jwt.JwtAccess] r, MonadIO (Sem r)) => MyScotty r ()
-app' = do
+app :: (Members '[Data.UserData, Jwt.JwtAccess] r, MonadIO (Sem r)) => MyScotty r ()
+app = do
   S.post "/api/auth/login" Auth.login
   S.post "/api/auth/refresh" Auth.refresh
   S.post "/api/auth/logout" $ Auth.authenticate Auth.logout
   S.get "/api/auth/validate" $ Auth.authenticate $ const $ answerOk True
 
-app :: (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO Application
-app runResponse = S.scottyAppT runResponse app'
+waiApp :: (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO Application
+waiApp runResponse = S.scottyAppT runResponse app
 
 runApp :: Int -> Int -> (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO ()
 runApp port frontendPort runResponse = do
@@ -46,7 +46,7 @@ runApp port frontendPort runResponse = do
       ("api" : _) -> oldApp req respond
       _           -> proxyApp req respond
 
-    app'
+    app
 
 type family a ++ b where
   '[] ++ bs = bs
