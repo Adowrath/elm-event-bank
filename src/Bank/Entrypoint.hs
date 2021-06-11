@@ -1,5 +1,6 @@
 module Bank.Entrypoint
-  ( runApp,
+  ( EffectTypes,
+    runApp,
     waiApp,
     ElmTypes,
   )
@@ -20,17 +21,28 @@ import           Polysemy
 import           Relude
 import qualified Web.Scotty.Trans                     as S
 
-app :: (Members '[Data.UserData, Jwt.JwtAccess] r, MonadIO (Sem r)) => MyScotty r ()
+type EffectTypes =
+  '[ Data.UserService,
+     Jwt.JwtAccess,
+     Embed IO
+   ]
+
+app :: (Members EffectTypes r, MonadIO (Sem r)) => MyScotty r ()
 app = do
   S.post "/api/auth/login" Auth.login
   S.post "/api/auth/refresh" Auth.refresh
   S.post "/api/auth/logout" $ Auth.authenticate Auth.logout
   S.get "/api/auth/validate" $ Auth.authenticate $ const $ answerOk True
 
-waiApp :: (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO Application
+--  S.post "/api/account/create" $ Auth.authenticate Account.create
+--  S.get "/api/account" $ Auth.authenticate Account.list
+--  S.get "/api/account/:id" $ Auth.authenticate Acccount.get
+--  S.post "/api/account/close/:id" $ Auth.authenticate Account.close
+
+waiApp :: (Sem EffectTypes Response -> IO Response) -> IO Application
 waiApp runResponse = S.scottyAppT runResponse app
 
-runApp :: Int -> Int -> (Sem '[Data.UserData, Jwt.JwtAccess, Embed IO] Response -> IO Response) -> IO ()
+runApp :: Int -> Int -> (Sem EffectTypes Response -> IO Response) -> IO ()
 runApp port frontendPort runResponse = do
   manager <- newManager defaultManagerSettings
 

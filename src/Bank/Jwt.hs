@@ -44,7 +44,13 @@ import           Unsafe.Coerce         (unsafeCoerce)
 
 -------------------- COMMUNICATION OBJECTS -------------------
 
-type ElmTypes = '[SessionToken, RefreshToken, JwtTokensPair, SingleToken ""]
+type ElmTypes =
+  '[ SessionToken,
+     RefreshToken,
+     JwtTokensPair,
+     SingleToken "",
+     TokenError
+   ]
 
 type family JwtToken a = r | r -> a where
   JwtToken "session" = SessionToken
@@ -81,9 +87,11 @@ instance FromJSON (SingleToken typ) where
 instance Elm (SingleToken typ) where
   toElmDefinition _ = DefAlias $ ElmAlias "SingleToken" (ElmRecordField (RefPrim ElmString) "token" :| []) False
 
--------------------- EFFECTS --------------------
-
 data TokenError = TokenMalformed Text | TokenUnsigned | TokenWrongType | TokenExpired
+  deriving stock Generic
+  deriving (ToJSON, Elm) via ElmStreet TokenError
+
+-------------------- EFFECTS --------------------
 
 data CustomClaim a = CustomClaim
   { -- | Issuer

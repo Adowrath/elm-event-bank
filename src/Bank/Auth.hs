@@ -22,7 +22,7 @@ import qualified Web.Scotty.Trans          as S
 
 -------------------- COMMUNICATION OBJECTS -------------------
 
-type ElmTypes = '[LoginData]
+type ElmTypes = '[LoginData, LoginError]
 
 data LoginData = LoginData
   { username :: Text,
@@ -36,20 +36,32 @@ instance Validatable LoginData where
     l <$ failureIf (T.length username < 3) "Username too short - at least 3 characters"
       <* failureIf (T.length password < 8) "Password too short - at least 8 characters"
 
+data LoginError
+  = UnknownUser
+  | UsernameTaken
+  | WrongPassword
+  | NotLoggedIn
+  | SessionLoggedOut
+  | NotBearerAuthenticated
+  | UserNoLongerExists
+  | LoginExpired
+  deriving stock (Generic)
+  deriving (ToJSON, Elm) via ElmStreet LoginError
+
 -------------------- ROUTES -------------------
 
-login :: (Members '[UserData, JwtAccess] r, MonadIO (Sem r)) => MyAction r ()
+login :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r)) => MyAction r ()
 login = do
   LoginData {username, password} <- parseJsonBody
 
-  user <- whenNothingM (lift $ findUser username) $ failUserError forbidden403 "Unknown user"
+  user <- whenNothingM (lift $ findUser username) $ failUserError forbidden403 UnknownUser
 
   ifM
     (not <$> verifyPassword user password)
-    (failUserError forbidden403 "Wrong password")
+    (failUserError forbidden403 WrongPassword)
     (generateNewTokens user)
 
-refresh :: (Members '[UserData, JwtAccess] r, MonadIO (Sem r)) => MyAction r ()
+refresh :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r)) => MyAction r ()
 refresh = do
   Always SingleToken {token} <- parseJsonBody
 
@@ -61,27 +73,27 @@ refresh = do
 
   answerOk newTokens
 
-authenticate :: (Members '[UserData, JwtAccess] r, MonadIO (Sem r)) => (User -> MyAction r ()) -> MyAction r ()
+authenticate :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r)) => (User -> MyAction r ()) -> MyAction r ()
 authenticate action = do
-  auth <- whenNothingM (S.header "Authorization") $ failUserError forbidden403 "Not logged in."
-  fullToken <- whenNothing (T.stripPrefix "Bearer" (toText auth)) $ failUserError forbidden403 "Not Bearer authentication."
+  auth <- whenNothingM (S.header "Authorization") $ failUserError forbidden403 NotLoggedIn
+  fullToken <- whenNothing (T.stripPrefix "Bearer" (toText auth)) $ failUserError forbidden403 NotBearerAuthenticated
 
   let jwtToken = SessionToken $ J.Jwt $ encodeUtf8 $ T.strip fullToken
   (user, _) <- loadUserFromToken jwtToken
   action user
 
-logout :: Member UserData r => User -> MyAction r ()
+logout :: Member UserService r => User -> MyAction r ()
 logout user = do
   let newUser = user {refreshToken = Nothing}
   lift $ storeUser newUser
   answerOk True
 
-createAccount :: (Members '[UserData] r, MonadIO (Sem r)) => MyAction r ()
+createAccount :: (Members '[UserService] r, MonadIO (Sem r)) => MyAction r ()
 createAccount = do
   LoginData {username, password} <- parseJsonBody
 
   user <- lift $ findUser username
-  whenJust user \_ -> failUserError badRequest400 "User with that name already exists."
+  whenJust user \_ -> failUserError badRequest400 UsernameTaken
 
   newUuid <- liftIO UUID.nextRandom
   hashedPw <- hashPw password
@@ -93,26 +105,24 @@ createAccount = do
 
 loadUserFromToken ::
   forall typ r.
-  (Members '[UserData, JwtAccess] r, MonadIO (Sem r), KnownSymbol typ) =>
+  (Members '[UserService, JwtAccess] r, MonadIO (Sem r), KnownSymbol typ) =>
   JwtToken typ ->
   MyAction r (User, CustomClaim typ)
 loadUserFromToken token = lift (extractClaimData token) >>= either handleError handleResult
   where
     handleError :: TokenError -> MyAction r a
     handleError = \case
-      TokenExpired -> failUserError badRequest400 "Token expired."
-      TokenWrongType -> failUserError badRequest400 "Wrong token type."
-      TokenUnsigned -> failUserError badRequest400 "Token unsigned."
-      TokenMalformed text -> failUserError unprocessableEntity422 $ "Token malformed: " <> text
+      TokenMalformed text -> failUserError unprocessableEntity422 $ TokenMalformed $ "Token malformed: " <> text
+      other -> failUserError badRequest400 other
 
     handleResult :: CustomClaim typ -> MyAction r (User, CustomClaim typ)
     handleResult claim = do
-      user <- whenNothingM (lift $ loadUser $ sub claim) $ failUserError badRequest400 "User no longer exists."
+      user <- whenNothingM (lift $ loadUser $ sub claim) $ failUserError badRequest400 UserNoLongerExists
 
       ifM
         (checkPairId claim user)
         (pure (user, claim))
-        (failUserError badRequest400 "This session was logged out.")
+        (failUserError badRequest400 SessionLoggedOut)
 
     checkPairId :: CustomClaim typ -> User -> MyAction r Bool
     checkPairId claim user = case refreshToken user of
@@ -122,14 +132,14 @@ loadUserFromToken token = lift (extractClaimData token) >>= either handleError h
 
         let handleRefreshError TokenExpired = do
               lift $ storeUser user {refreshToken = Nothing}
-              failUserError badRequest400 "Your login has expired."
+              failUserError badRequest400 LoginExpired
             handleRefreshError _ = S.raise "Stored JWT Token turned invalid?"
 
         refreshClaim <- either handleRefreshError pure extractedClaim
 
         return $ pid claim == pid refreshClaim
 
-generateNewTokens :: Members '[UserData, JwtAccess] r => User -> MyAction r ()
+generateNewTokens :: Members '[UserService, JwtAccess] r => User -> MyAction r ()
 generateNewTokens user = do
   tokens <- lift $ generateNewTokenPair $ userId user
   lift $ storeUser (user {refreshToken = Just $ jtRefresh tokens})

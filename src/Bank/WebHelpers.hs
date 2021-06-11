@@ -6,6 +6,7 @@ where
 import           Bank.Types
 import           Data.Aeson
 import qualified Data.List.NonEmpty        as N
+import           Elm                       (Elm)
 import           Network.HTTP.Types.Status (Status, badRequest400, ok200,
                                             unprocessableEntity422)
 import           Polysemy
@@ -21,16 +22,16 @@ newtype Always a = Always a
   deriving newtype FromJSON
   deriving anyclass Validatable
 
-answerOk :: ToJSON a => a -> MyAction r b
+answerOk :: (ToJSON a, Elm a) => a -> MyAction r b
 answerOk answer = do
   S.status ok200
   S.json $ okResult answer
   S.finish
 
-failUserError :: Status -> Text -> MyAction r a
-failUserError status text = do
+failUserError :: (ToJSON a, Elm a) => Status -> a -> MyAction r b
+failUserError status err = do
   S.status status
-  S.json $ userError text
+  S.json $ userError err
   S.finish
 
 failInternalError :: Status -> Text -> MyAction r a

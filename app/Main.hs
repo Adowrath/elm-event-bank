@@ -3,9 +3,8 @@ module Main
   )
 where
 
-import           Bank.Data              (UserData)
-import           Bank.Entrypoint        (ElmTypes, runApp)
-import           Bank.Jwt               (JwtAccess, runRealJwt)
+import           Bank.Entrypoint        (EffectTypes, ElmTypes, runApp)
+import           Bank.Jwt               (runRealJwt)
 import           Control.Concurrent     (forkIO, killThread)
 import           Data.Aeson             as A
 import           Elm                    (defaultSettings, generateElm)
@@ -55,7 +54,7 @@ startFrontend frontendFolder frontendPort endFrontend = do
   withProcessTerm command $ \_ -> do
     void $ takeMVar endFrontend
 
-runServer :: FilePath -> Sem '[ UserData, JwtAccess, Embed IO ] a -> IO a
+runServer :: FilePath -> Sem EffectTypes a -> IO a
 runServer key_file server = join $ do
   jwkParseResult <- first toText <$> A.eitherDecodeFileStrict' @J.Jwk key_file
 
