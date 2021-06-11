@@ -34,14 +34,14 @@ okResult :: a -> Result a
 okResult = Result Ok
 
 userError :: a -> Result a
-userError = Result UserError
+userError = Result Error
 
 internalError :: a -> Result a
-internalError = Result Error
+internalError = Result OtherError
 
-data ResultType = Ok | UserError | Error
+data ResultType = Ok | Error | OtherError
 
 instance ToJSON ResultType where
-  toJSON Ok        = String "ok"
-  toJSON UserError = String "user-error"
-  toJSON Error     = String "error"
+  toJSON Ok         = String "ok"
+  toJSON Error      = String "user-error"
+  toJSON OtherError = String "other-error"

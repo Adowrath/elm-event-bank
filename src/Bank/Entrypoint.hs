@@ -29,15 +29,17 @@ type EffectTypes =
 
 app :: (Members EffectTypes r, MonadIO (Sem r)) => MyScotty r ()
 app = do
+  S.post "/api/auth/create" Auth.createAccount
   S.post "/api/auth/login" Auth.login
   S.post "/api/auth/refresh" Auth.refresh
   S.post "/api/auth/logout" $ Auth.authenticate Auth.logout
   S.get "/api/auth/validate" $ Auth.authenticate $ const $ answerOk True
 
---  S.post "/api/account/create" $ Auth.authenticate Account.create
+--  S.post "/api/account/open" $ Auth.authenticate Account.open
 --  S.get "/api/account" $ Auth.authenticate Account.list
---  S.get "/api/account/:id" $ Auth.authenticate Acccount.get
---  S.post "/api/account/close/:id" $ Auth.authenticate Account.close
+--  S.get "/api/account/:id" $ Auth.authenticate Account.get
+--  S.post "/api/account/:id" $ Auth.authenticate Account.update
+--  S.post "/api/account/:id/close" $ Auth.authenticate Account.close
 
 waiApp :: (Sem EffectTypes Response -> IO Response) -> IO Application
 waiApp runResponse = S.scottyAppT runResponse app

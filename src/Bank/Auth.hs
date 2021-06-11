@@ -22,7 +22,7 @@ import qualified Web.Scotty.Trans          as S
 
 -------------------- COMMUNICATION OBJECTS -------------------
 
-type ElmTypes = '[LoginData, LoginError]
+type ElmTypes = '[LoginData, AuthError]
 
 data LoginData = LoginData
   { username :: Text,
@@ -36,7 +36,7 @@ instance Validatable LoginData where
     l <$ failureIf (T.length username < 3) "Username too short - at least 3 characters"
       <* failureIf (T.length password < 8) "Password too short - at least 8 characters"
 
-data LoginError
+data AuthError
   = UnknownUser
   | UsernameTaken
   | WrongPassword
@@ -45,8 +45,9 @@ data LoginError
   | NotBearerAuthenticated
   | UserNoLongerExists
   | LoginExpired
+  | AuthTokenError TokenError
   deriving stock (Generic)
-  deriving (ToJSON, Elm) via ElmStreet LoginError
+  deriving (ToJSON, Elm) via ElmStreet AuthError
 
 -------------------- ROUTES -------------------
 
@@ -69,18 +70,9 @@ refresh = do
 
   -- Loading the user verifies the refresh token.
   (_, refreshClaims) <- loadUserFromToken rToken
-  newTokens <- lift $ generateNewSession refreshClaims
+  newToken <- lift $ generateNewSession refreshClaims
 
-  answerOk newTokens
-
-authenticate :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r)) => (User -> MyAction r ()) -> MyAction r ()
-authenticate action = do
-  auth <- whenNothingM (S.header "Authorization") $ failUserError forbidden403 NotLoggedIn
-  fullToken <- whenNothing (T.stripPrefix "Bearer" (toText auth)) $ failUserError forbidden403 NotBearerAuthenticated
-
-  let jwtToken = SessionToken $ J.Jwt $ encodeUtf8 $ T.strip fullToken
-  (user, _) <- loadUserFromToken jwtToken
-  action user
+  answerOk newToken
 
 logout :: Member UserService r => User -> MyAction r ()
 logout user = do
@@ -88,18 +80,27 @@ logout user = do
   lift $ storeUser newUser
   answerOk True
 
-createAccount :: (Members '[UserService] r, MonadIO (Sem r)) => MyAction r ()
+createAccount :: (Member UserService r, MonadIO (Sem r)) => MyAction r ()
 createAccount = do
   LoginData {username, password} <- parseJsonBody
 
-  user <- lift $ findUser username
-  whenJust user \_ -> failUserError badRequest400 UsernameTaken
+  whenJustM (lift $ findUser username) \_ -> failUserError badRequest400 UsernameTaken
 
   newUuid <- liftIO UUID.nextRandom
   hashedPw <- hashPw password
-  let newUser = User newUuid username hashedPw Nothing
-  lift $ storeUser newUser
+  lift $ storeUser $ User newUuid username hashedPw Nothing
   answerOk True
+
+authenticate :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r))
+  => (User -> MyAction r ())
+  -> MyAction r ()
+authenticate action = do
+  auth <- whenNothingM (S.header "Authorization") $ failUserError forbidden403 NotLoggedIn
+  fullToken <- whenNothing (T.stripPrefix "Bearer" (toText auth)) $ failUserError forbidden403 NotBearerAuthenticated
+
+  let jwtToken = SessionToken $ J.Jwt $ encodeUtf8 $ T.strip fullToken
+  (user, _) <- loadUserFromToken jwtToken
+  action user
 
 -------------------- HELPERS --------------------
 
@@ -112,8 +113,8 @@ loadUserFromToken token = lift (extractClaimData token) >>= either handleError h
   where
     handleError :: TokenError -> MyAction r a
     handleError = \case
-      TokenMalformed text -> failUserError unprocessableEntity422 $ TokenMalformed $ "Token malformed: " <> text
-      other -> failUserError badRequest400 other
+      t@TokenMalformed{} -> failUserError unprocessableEntity422 $ AuthTokenError t
+      other -> failUserError badRequest400 $ AuthTokenError other
 
     handleResult :: CustomClaim typ -> MyAction r (User, CustomClaim typ)
     handleResult claim = do

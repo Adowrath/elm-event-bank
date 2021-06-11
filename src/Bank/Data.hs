@@ -15,10 +15,11 @@ module Bank.Data
     AccountService (..),
     openAccount,
     closeAccount,
-    getAccounts,
-    getHistory,
-    handleEvent,
-    AccountEventResult (..),
+    myAccounts,
+    allAccounts,
+    accountHistory,
+    processEvent,
+    AccountProcessResult (..),
   )
 where
 
@@ -47,7 +48,7 @@ makeSem ''UserService
 -------------------- ACCOUNTS --------------------
 
 data AccountEvent
-  = Opened
+  = Opened Text
   | Deposited Int
   | Withdrew Int
   | TransferFrom AccountId Int
@@ -68,15 +69,20 @@ newtype AccountId = AccountId UUID
 
 instance Elm AccountId where toElmDefinition _ = DefPrim ElmString
 
-data AccountEventResult = AccountOk | NotEnoughBalance | AccountClosed | AccountDoesNotExist
+data Whose = Yours | Theirs
   deriving stock (Generic)
-  deriving (ToJSON, Elm) via ElmStreet AccountEventResult
+  deriving (ToJSON, Elm) via ElmStreet Whose
+
+data AccountProcessResult = AccountOk | NotEnoughBalance | AccountClosed Whose | AccountDoesNotExist Whose
+  deriving stock (Generic)
+  deriving (ToJSON, Elm) via ElmStreet AccountProcessResult
 
 data AccountService m a where
   OpenAccount :: User -> AccountService m AccountId
-  CloseAccount :: AccountId -> AccountService m Bool
-  GetAccounts :: User -> AccountService m [AccountId]
-  GetHistory :: AccountId -> AccountService m (Maybe (NonEmpty TimedEvent))
-  HandleEvent :: AccountId -> AccountEvent -> AccountService m AccountEventResult
+  CloseAccount :: User -> AccountId -> AccountService m Bool
+  MyAccounts :: User -> AccountService m [AccountId]
+  AllAccounts :: AccountService m [AccountId]
+  AccountHistory :: User -> AccountId -> AccountService m (Maybe (NonEmpty TimedEvent))
+  ProcessEvent :: User -> AccountId -> AccountEvent -> AccountService m AccountProcessResult
 
 makeSem ''AccountService
