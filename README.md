@@ -1,3 +1,3 @@
 # event-bank
 
-Key generated used: https://mkjwk.org/
+Key generated using: https://mkjwk.org/

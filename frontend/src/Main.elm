@@ -1,12 +1,16 @@
 module Main exposing (..)
 
+import Api as Api exposing (ApiResponse(..), Token)
 import Browser
 import Generated.Decoder
-import Generated.Types
-import Html exposing (Html, button, div, h1, img, li, text, ul)
-import Html.Attributes exposing (src)
+import Generated.Types exposing (AuthError, SingleToken)
+import Html exposing (Html, button, div, h1, img, input, li, text, ul)
+import Html.Attributes exposing (class, src)
 import Html.Events exposing (onClick)
 import Http
+import Json.Decode as D exposing (..)
+import Json.Decode.Pipeline as D exposing (required)
+import Time
 
 
 
@@ -14,49 +18,72 @@ import Http
 
 
 type alias Model =
-    { examples : List Int }
+    { data : DataModel, view : ViewModel }
+
+
+type alias DataModel =
+    { refreshToken : Maybe String, sessionToken : Maybe String }
+
+
+type alias ViewModel =
+    {}
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { examples = [] }, Cmd.none )
+    let
+        initData =
+            { refreshToken = Nothing, sessionToken = Nothing }
+
+        initView =
+            {}
+    in
+    ( { data = initData, view = initView }, Cmd.none )
 
 
 
-{-
-
-   NOTE: Use Json.Decode.field for walking into the "result" field
-
--}
 ---- UPDATE ----
 
 
 type Msg
-    = RequestNext
-    | NextReceived (Result Http.Error Int)
+    = NewSessionToken (Api.ApiResponse AuthError Token)
+    | RefreshToken Time.Posix
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        RequestNext ->
-            ( model, loadNextExample )
-
-        NextReceived res ->
+        NewSessionToken res ->
             case res of
-                Ok example ->
-                    ( { model | examples = model.examples ++ [ example ] }, Cmd.none )
+                ApiOk newToken ->
+                    let
+                        tempData =
+                            model.data
+                    in
+                    ( { model | data = { tempData | sessionToken = Just newToken } }, Cmd.none )
 
-                Err _ ->
+                UserError e ->
                     ( model, Cmd.none )
 
+                OtherError string ->
+                    ( model, Cmd.none )
 
-loadNextExample : Cmd Msg
-loadNextExample =
-    Http.get
-        { url = "/api/example"
-        , expect = Http.expectJson NextReceived undefined
-        }
+                ConnectionError error ->
+                    ( model, Cmd.none )
+
+        -- TODO
+        _ ->
+            ( model, Cmd.none )
+
+
+sendRefreshRequest : Model -> Cmd Msg
+sendRefreshRequest model =
+    case model.data.refreshToken of
+        Nothing ->
+            Cmd.none
+
+        Just refreshToken ->
+            Api.authRefresh NewSessionToken <| SingleToken refreshToken
 
 
 
@@ -78,25 +105,30 @@ title _ =
 body : Model -> List (Html Msg)
 body model =
     let
-        f : ExampleType -> Html Msg
-        f example =
-            li [] [ text (String.fromInt example.first ++ " with message: " ++ example.second) ]
-
-        exampleList : List (Html Msg)
-        exampleList =
-            if List.length model.examples == 0 then
-                []
-
-            else
-                [ ul [] (List.map f model.examples) ]
+        foo =
+            2
     in
     [ div []
         [ img [ src "/logo.svg" ] []
         , h1 [] [ text "Your Elm App is working!" ]
         ]
-    , button [ onClick RequestNext ] [ text "Load next element" ]
+    , button [ class "" ] [ text "Load next element" ]
+    , input [] []
     ]
-        ++ exampleList
+
+
+
+---- SUBSCRIPTIONS ----
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model.data.refreshToken of
+        Nothing ->
+            Sub.none
+
+        Just _ ->
+            Time.every (1000 * 60 * 10) RefreshToken
 
 
 
@@ -109,5 +141,5 @@ main =
         { view = view
         , init = \_ -> init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }

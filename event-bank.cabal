@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3341704ebcea12af52b0eb24c314eec6c25bd05743820d56e86d7cf10386994e
+-- hash: 61c5e837499530dd9094a346a5663215184c3b5339fb2022efdda76bc59c04d5
 
 name:           event-bank
 version:        0.2.0.0
@@ -21,6 +21,7 @@ extra-source-files:
 
 library
   exposed-modules:
+      Bank.Account
       Bank.Auth
       Bank.Data
       Bank.Entrypoint
