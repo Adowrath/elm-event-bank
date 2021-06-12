@@ -8,6 +8,40 @@ import Generated.ElmStreet exposing (..)
 import Generated.Types as T
 
 
+decodeAccountEvent : Decoder T.AccountEvent
+decodeAccountEvent =
+    let decide : String -> Decoder T.AccountEvent
+        decide x = case x of
+            "Opened" -> D.field "contents" <| D.map T.Opened D.string
+            "Deposited" -> D.field "contents" <| D.map T.Deposited D.int
+            "Withdrew" -> D.field "contents" <| D.map T.Withdrew D.int
+            "TransferFrom" -> D.field "contents" <| D.map2 T.TransferFrom (D.index 0 D.string) (D.index 1 D.int)
+            "TransferTo" -> D.field "contents" <| D.map2 T.TransferTo (D.index 0 D.string) (D.index 1 D.int)
+            "Closed" -> D.succeed T.Closed
+            c -> D.fail <| "AccountEvent doesn't have such constructor: " ++ c
+    in D.andThen decide (D.field "tag" D.string)
+
+decodeTimedEvent : Decoder T.TimedEvent
+decodeTimedEvent = D.succeed T.TimedEvent
+    |> required "time" Iso.decoder
+    |> required "event" decodeAccountEvent
+
+
+
+decodeWhose : Decoder T.Whose
+decodeWhose = elmStreetDecodeEnum T.readWhose
+
+decodeAccountProcessResult : Decoder T.AccountProcessResult
+decodeAccountProcessResult =
+    let decide : String -> Decoder T.AccountProcessResult
+        decide x = case x of
+            "AccountOk" -> D.succeed T.AccountOk
+            "NotEnoughBalance" -> D.succeed T.NotEnoughBalance
+            "AccountClosed" -> D.field "contents" <| D.map T.AccountClosed decodeWhose
+            "AccountDoesNotExist" -> D.field "contents" <| D.map T.AccountDoesNotExist decodeWhose
+            c -> D.fail <| "AccountProcessResult doesn't have such constructor: " ++ c
+    in D.andThen decide (D.field "tag" D.string)
+
 decodeLoginData : Decoder T.LoginData
 decodeLoginData = D.succeed T.LoginData
     |> required "username" D.string

@@ -66,4 +66,4 @@ type family a ++ b where
   '[] ++ bs = bs
   (a : as) ++ bs = a : as ++ bs
 
-type ElmTypes = Auth.ElmTypes ++ Jwt.ElmTypes
+type ElmTypes = Data.ElmTypes ++ Auth.ElmTypes ++ Jwt.ElmTypes

@@ -4,14 +4,17 @@ module Main
 where
 
 import           Bank.Entrypoint        (EffectTypes, ElmTypes, runApp)
+import           Bank.InMemory          (runUserServiceInMemory)
 import           Bank.Jwt               (runRealJwt)
 import           Control.Concurrent     (forkIO, killThread)
 import           Data.Aeson             as A
+import           Data.Map.Strict        as M (empty)
 import           Elm                    (defaultSettings, generateElm)
 import           Jose.Jwa               as J
 import           Jose.Jwk               as J
 import           Jose.Jwt               as J
 import           Polysemy               as P
+import           Polysemy.Embed         (runEmbedded)
 import           Relude
 import           System.Console.CmdArgs
 import           System.Environment     (getEnvironment)
@@ -54,8 +57,8 @@ startFrontend frontendFolder frontendPort endFrontend = do
   withProcessTerm command $ \_ -> do
     void $ takeMVar endFrontend
 
-runServer :: FilePath -> Sem EffectTypes a -> IO a
-runServer key_file server = join $ do
+runServer :: FilePath -> IO (Sem EffectTypes a -> IO a)
+runServer key_file = do
   jwkParseResult <- first toText <$> A.eitherDecodeFileStrict' @J.Jwk key_file
 
   let keys :: [J.Jwk]
@@ -63,13 +66,13 @@ runServer key_file server = join $ do
       encoding :: J.JwtEncoding
       encoding = J.JwsEncoding J.RS512
 
-  server
-    & runUserDataInMemory
-    & runRealJwt keys encoding
-    & P.runM
+  userStorage <- newTVarIO M.empty
 
-runUserDataInMemory :: a
-runUserDataInMemory = runUserDataInMemory
+  return $ P.runM
+    . runRealJwt keys encoding
+    . runEmbedded atomically
+    . runUserServiceInMemory userStorage
+    . raiseUnder
 
 main :: IO ()
 main = do
@@ -81,8 +84,10 @@ main = do
   putTextLn "Starting frontend..."
   frontendThread <- forkIO $ startFrontend frontend_folder frontend_port frontendMVar
 
+  initializedRunner <- runServer key_file
+
   putTextLn "Starting backend..."
-  scottyThread <- forkIO $ runApp server_port frontend_port $ runServer key_file
+  scottyThread <- forkIO $ runApp server_port frontend_port $ initializedRunner
 
   let terminate :: Bool -> IO ()
       terminate goodTerminate = do

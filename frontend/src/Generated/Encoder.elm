@@ -7,6 +7,34 @@ import Generated.ElmStreet exposing (..)
 import Generated.Types as T
 
 
+encodeAccountEvent : T.AccountEvent -> Value
+encodeAccountEvent x = E.object <| case x of
+    T.Opened x1 -> [("tag", E.string "Opened"), ("contents", E.string x1)]
+    T.Deposited x1 -> [("tag", E.string "Deposited"), ("contents", E.int x1)]
+    T.Withdrew x1 -> [("tag", E.string "Withdrew"), ("contents", E.int x1)]
+    T.TransferFrom x1 x2 -> [("tag", E.string "TransferFrom"), ("contents", E.list identity [E.string x1, E.int x2])]
+    T.TransferTo x1 x2 -> [("tag", E.string "TransferTo"), ("contents", E.list identity [E.string x1, E.int x2])]
+    T.Closed  -> [("tag", E.string "Closed"), ("contents", E.list identity [])]
+
+encodeTimedEvent : T.TimedEvent -> Value
+encodeTimedEvent x = E.object
+    [ ("tag", E.string "TimedEvent")
+    , ("time", Iso.encode x.time)
+    , ("event", encodeAccountEvent x.event)
+    ]
+
+
+
+encodeWhose : T.Whose -> Value
+encodeWhose = E.string << T.showWhose
+
+encodeAccountProcessResult : T.AccountProcessResult -> Value
+encodeAccountProcessResult x = E.object <| case x of
+    T.AccountOk  -> [("tag", E.string "AccountOk"), ("contents", E.list identity [])]
+    T.NotEnoughBalance  -> [("tag", E.string "NotEnoughBalance"), ("contents", E.list identity [])]
+    T.AccountClosed x1 -> [("tag", E.string "AccountClosed"), ("contents", encodeWhose x1)]
+    T.AccountDoesNotExist x1 -> [("tag", E.string "AccountDoesNotExist"), ("contents", encodeWhose x1)]
+
 encodeLoginData : T.LoginData -> Value
 encodeLoginData x = E.object
     [ ("tag", E.string "LoginData")

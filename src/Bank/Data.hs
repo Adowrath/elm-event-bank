@@ -17,13 +17,16 @@ module Bank.Data
     closeAccount,
     myAccounts,
     allAccounts,
-    accountHistory,
+    loadAccount,
     processEvent,
     AccountProcessResult (..),
+
+    -- * Elm Types
+    ElmTypes,
   )
 where
 
-import           Bank.Jwt
+import           Bank.Jwt        hiding (ElmTypes)
 import           Data.Aeson      (FromJSON, ToJSON)
 import           Data.Time.Clock (UTCTime)
 import           Data.UUID       (UUID)
@@ -49,10 +52,10 @@ makeSem ''UserService
 
 data AccountEvent
   = Opened Text
-  | Deposited Int
-  | Withdrew Int
-  | TransferFrom AccountId Int
-  | TransferTo AccountId Int
+  | Deposited Word
+  | Withdrew Word
+  | TransferFrom AccountId Word
+  | TransferTo AccountId Word
   | Closed
   deriving stock (Generic)
   deriving (FromJSON, ToJSON, Elm) via ElmStreet AccountEvent
@@ -77,12 +80,23 @@ data AccountProcessResult = AccountOk | NotEnoughBalance | AccountClosed Whose |
   deriving stock (Generic)
   deriving (ToJSON, Elm) via ElmStreet AccountProcessResult
 
+data AccountData = AccountData
+  { accountId :: AccountId,
+    ownerName :: Text,
+    balance   :: Int,
+    history   :: [TimedEvent]
+  }
+  deriving stock (Generic)
+  deriving (ToJSON, Elm) via ElmStreet AccountData
+
 data AccountService m a where
   OpenAccount :: User -> AccountService m AccountId
   CloseAccount :: User -> AccountId -> AccountService m Bool
   MyAccounts :: User -> AccountService m [AccountId]
   AllAccounts :: AccountService m [AccountId]
-  AccountHistory :: User -> AccountId -> AccountService m (Maybe (NonEmpty TimedEvent))
+  LoadAccount :: User -> AccountId -> AccountService m (Either AccountData (NonEmpty TimedEvent))
   ProcessEvent :: User -> AccountId -> AccountEvent -> AccountService m AccountProcessResult
 
 makeSem ''AccountService
+
+type ElmTypes = '[AccountEvent, TimedEvent, AccountId, Whose, AccountProcessResult]
