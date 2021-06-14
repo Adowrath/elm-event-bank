@@ -4,7 +4,7 @@ module Main
 where
 
 import           Bank.Entrypoint        (EffectTypes, ElmTypes, runApp)
-import           Bank.InMemory          (runUserServiceInMemory)
+import           Bank.InMemory          (runUserServiceInMemory, runAccountServiceInMemory)
 import           Bank.Jwt               (runRealJwt)
 import           Control.Concurrent     (forkIO, killThread)
 import           Data.Aeson             as A
@@ -67,12 +67,14 @@ runServer key_file = do
       encoding = J.JwsEncoding J.RS512
 
   userStorage <- newTVarIO M.empty
+  accountStorage <- newTVarIO M.empty
 
   return $ P.runM
     . runRealJwt keys encoding
     . runEmbedded atomically
+    . runAccountServiceInMemory accountStorage
     . runUserServiceInMemory userStorage
-    . raiseUnder
+    . raise2Under @(Embed STM)
 
 main :: IO ()
 main = do

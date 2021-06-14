@@ -7,18 +7,22 @@ module Bank.Data
     storeUser,
     loadUser,
     findUser,
+    allUsers,
 
     -- * Accounts
+    AccountEventIn (..),
     AccountEvent (..),
     TimedEvent (..),
     AccountId (..),
     AccountService (..),
     openAccount,
     closeAccount,
-    myAccounts,
-    allAccounts,
+    accountsBy,
     loadAccount,
+    AccountData (..),
+    AccountLoadResult (..),
     processEvent,
+    Whose (..),
     AccountProcessResult (..),
 
     -- * Elm Types
@@ -34,8 +38,10 @@ import           Elm
 import           Polysemy
 import           Relude
 
+type UserId = UUID
+
 data User = User
-  { userId       :: UUID,
+  { userId       :: UserId,
     userUsername :: Text,
     userPassword :: ByteString,
     refreshToken :: Maybe RefreshToken
@@ -43,22 +49,30 @@ data User = User
 
 data UserService m a where
   StoreUser :: User -> UserService m ()
-  LoadUser :: UUID -> UserService m (Maybe User)
+  LoadUser :: UserId -> UserService m (Maybe User)
   FindUser :: Text -> UserService m (Maybe User)
+  AllUsers :: UserService m [User]
 
 makeSem ''UserService
 
 -------------------- ACCOUNTS --------------------
 
+data AccountEventIn
+  = DepositedIn Word
+  | WithdrewIn Word
+  | TransferToIn AccountId Word
+  deriving stock (Generic, Eq)
+  deriving (FromJSON, Elm) via ElmStreet AccountEventIn
+
 data AccountEvent
   = Opened Text
   | Deposited Word
   | Withdrew Word
-  | TransferFrom AccountId Word
   | TransferTo AccountId Word
+  | TransferFrom AccountId Word
   | Closed
-  deriving stock (Generic)
-  deriving (FromJSON, ToJSON, Elm) via ElmStreet AccountEvent
+  deriving stock (Generic, Eq)
+  deriving (ToJSON, Elm) via ElmStreet AccountEvent
 
 data TimedEvent = TimedEvent
   { time  :: UTCTime,
@@ -68,35 +82,52 @@ data TimedEvent = TimedEvent
   deriving (ToJSON, Elm) via ElmStreet TimedEvent
 
 newtype AccountId = AccountId UUID
-  deriving newtype (FromJSON, ToJSON)
+  deriving newtype (FromJSON, ToJSON, Ord, Eq)
 
 instance Elm AccountId where toElmDefinition _ = DefPrim ElmString
+
+data AccountData = AccountData
+  { accountId   :: AccountId,
+    accountName :: Text,
+    balance     :: Word,
+    history     :: NonEmpty TimedEvent
+  }
+  deriving stock (Generic)
+  deriving (ToJSON, Elm) via ElmStreet AccountData
+
+data AccountLoadResult = NoAccountFound | NotYourAccount | LoadResult AccountData
+  deriving stock (Generic)
+  deriving (ToJSON, Elm) via ElmStreet AccountLoadResult
 
 data Whose = Yours | Theirs
   deriving stock (Generic)
   deriving (ToJSON, Elm) via ElmStreet Whose
 
-data AccountProcessResult = AccountOk | NotEnoughBalance | AccountClosed Whose | AccountDoesNotExist Whose
+data AccountProcessResult
+  = AccountOk
+  | NotYourAccountToModify
+  | NotEnoughBalance
+  | AccountClosed Whose
+  | AccountDoesNotExist Whose
   deriving stock (Generic)
   deriving (ToJSON, Elm) via ElmStreet AccountProcessResult
 
-data AccountData = AccountData
-  { accountId :: AccountId,
-    ownerName :: Text,
-    balance   :: Int,
-    history   :: [TimedEvent]
-  }
-  deriving stock (Generic)
-  deriving (ToJSON, Elm) via ElmStreet AccountData
-
 data AccountService m a where
-  OpenAccount :: User -> AccountService m AccountId
+  OpenAccount :: User -> Text -> AccountService m AccountId
   CloseAccount :: User -> AccountId -> AccountService m Bool
-  MyAccounts :: User -> AccountService m [AccountId]
-  AllAccounts :: AccountService m [AccountId]
-  LoadAccount :: User -> AccountId -> AccountService m (Either AccountData (NonEmpty TimedEvent))
-  ProcessEvent :: User -> AccountId -> AccountEvent -> AccountService m AccountProcessResult
+  AccountsBy :: User -> AccountService m [AccountId]
+  LoadAccount :: User -> AccountId -> AccountService m AccountLoadResult
+  ProcessEvent :: User -> AccountId -> AccountEventIn -> AccountService m AccountProcessResult
 
 makeSem ''AccountService
 
-type ElmTypes = '[AccountEvent, TimedEvent, AccountId, Whose, AccountProcessResult]
+type ElmTypes =
+  '[ AccountEventIn,
+     AccountEvent,
+     TimedEvent,
+     AccountId,
+     Whose,
+     AccountProcessResult,
+     AccountData,
+     AccountLoadResult
+   ]

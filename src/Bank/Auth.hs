@@ -78,7 +78,7 @@ logout :: Member UserService r => User -> MyAction r ()
 logout user = do
   let newUser = user {refreshToken = Nothing}
   lift $ storeUser newUser
-  answerOk True
+  answerOk ()
 
 createAccount :: (Member UserService r, MonadIO (Sem r)) => MyAction r ()
 createAccount = do
@@ -89,7 +89,7 @@ createAccount = do
   newUuid <- liftIO UUID.nextRandom
   hashedPw <- hashPw password
   lift $ storeUser $ User newUuid username hashedPw Nothing
-  answerOk True
+  answerOk ()
 
 authenticate :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r))
   => (User -> MyAction r ())

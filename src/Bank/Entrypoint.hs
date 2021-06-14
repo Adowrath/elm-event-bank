@@ -23,6 +23,7 @@ import qualified Web.Scotty.Trans                     as S
 
 type EffectTypes =
   '[ Data.UserService,
+     Data.AccountService,
      Jwt.JwtAccess,
      Embed IO
    ]
