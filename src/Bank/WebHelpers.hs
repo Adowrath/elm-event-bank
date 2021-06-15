@@ -34,10 +34,10 @@ failUserError status err = do
   S.json $ userError err
   S.finish
 
-failInternalError :: Status -> Text -> MyAction r a
-failInternalError status text = do
+failInternalError :: Status -> [Text] -> MyAction r a
+failInternalError status texts = do
   S.status status
-  S.json $ internalError text
+  S.json $ internalError texts
   S.finish
 
 parseJsonBody :: (Validatable a, MonadIO (Sem r)) => MyAction r a
@@ -45,8 +45,8 @@ parseJsonBody = do
   prevalidated :: a <- S.jsonData `S.rescue` malformedHandler
 
   validate prevalidated & flip validation pure \errors -> do
-    failInternalError badRequest400 $ unlines $ N.toList errors
+    failInternalError badRequest400 $ N.toList errors
 
 malformedHandler :: (S.ScottyError e) => e -> MyAction r a
 malformedHandler err =
-  failInternalError unprocessableEntity422 ("Malformed JSON data: " <> toText (S.showError err))
+  failInternalError unprocessableEntity422 ["Malformed JSON data: " <> toText (S.showError err)]

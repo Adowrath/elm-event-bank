@@ -11,7 +11,7 @@ import Json.Encode as E exposing (Value)
 type ApiResponse e a
     = ApiOk a
     | UserError e
-    | OtherError String
+    | OtherError (List String)
     | ConnectionError Http.Error
 
 
@@ -24,11 +24,11 @@ apiResponseDecoder value error =
                 "ok" ->
                     D.field "data" <| D.map ApiOk value
 
-                "error" ->
+                "user-error" ->
                     D.field "data" <| D.map UserError error
 
                 "other-error" ->
-                    D.field "data" <| D.map OtherError D.string
+                    D.field "data" <| D.map OtherError <| D.list D.string
 
                 _ ->
                     D.fail <| "Unknown result type."
