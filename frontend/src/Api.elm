@@ -93,16 +93,16 @@ myAccounts =
     sapiGet (D.succeed ()) "/api/account" (D.list <| elmStreetDecodePair D.string D.string)
 
 
-accountsBy : String -> SecureGet () (List ( AccountId, String )) msg
+accountsBy : UserId -> SecureGet () (List ( AccountId, String )) msg
 accountsBy id =
     sapiGet (D.succeed ()) ("/api/account/by/" ++ id) (D.list <| elmStreetDecodePair D.string D.string)
 
 
-loadAccount : String -> SecureGet () AccountLoadResult msg
+loadAccount : AccountId -> SecureGet () AccountLoadResult msg
 loadAccount id =
     sapiGet (D.succeed ()) ("/api/account/" ++ id) decodeAccountLoadResult
 
 
-processEvent : String -> SecurePost () AccountProcessResult AccountEventIn msg
+processEvent : AccountId -> SecurePost () AccountProcessResult AccountEventIn msg
 processEvent id =
     sapiPost (D.succeed ()) ("/api/account/" ++ id) encodeAccountEventIn decodeAccountProcessResult
