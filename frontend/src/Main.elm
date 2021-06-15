@@ -11,7 +11,8 @@ import Html.Styled as Html exposing (..)
 import Html.Styled.Attributes as Att exposing (..)
 import Html.Styled.Events exposing (..)
 import Http exposing (Error(..))
-import Time
+import Json.Encode as Json
+import Time exposing (Month(..), toDay, toHour, toMinute, toMonth, toSecond, toYear, utc)
 
 
 
@@ -37,6 +38,9 @@ type alias DataModel =
 type Messages
     = NoMessages
     | LoginMessages Message
+    | WithdrawError Message
+    | DepositError Message
+    | TransferToError Message
     | GlobalError (List String)
 
 
@@ -82,12 +86,12 @@ emptyLoginDataModel =
 
 
 type alias AccountViewModel =
-    { opened : Maybe ( AccountData, AccountViewOpenedForm )
+    { opened : Maybe AccountData
     , newAccountName : String
-    , withdrawAmount : Maybe Int
-    , depositAmount : Maybe Int
-    , transferUserSelected : Maybe String
-    , transferAmount : Maybe Int
+    , withdrawAmount : Int
+    , depositAmount : Int
+    , transferAccount : AccountId
+    , transferAmount : Int
     }
 
 
@@ -95,17 +99,11 @@ emptyAccountViewModel : AccountViewModel
 emptyAccountViewModel =
     { opened = Nothing
     , newAccountName = ""
-    , withdrawAmount = Nothing
-    , depositAmount = Nothing
-    , transferUserSelected = Nothing
-    , transferAmount = Nothing
+    , withdrawAmount = 0
+    , depositAmount = 0
+    , transferAccount = ""
+    , transferAmount = 0
     }
-
-
-type AccountViewOpenedForm
-    = WithdrawForm
-    | DepositForm
-    | TransferForm
 
 
 init : ( Model, Cmd Msg )
@@ -149,8 +147,26 @@ type Msg
     | LoadAllData
     | MyAccountsLoaded (ApiResponse () (List ( AccountId, String )))
     | MyAccountLoaded (ApiResponse () AccountLoadResult)
+    | CurrentAccountReloaded (ApiResponse () AccountLoadResult)
     | AllUsersLoaded (ApiResponse AuthError (List ( UserId, String )))
     | ForeignAccountsLoaded PseudoUser (ApiResponse () (List ( AccountId, String )))
+      -- Account forms
+    | SelectAccount AccountData
+    | NewAccountName String
+    | NewAccountSend
+    | NewAccountResponse (ApiResponse () AccountId)
+    | CloseAccountSend
+    | CloseAccountResponse (ApiResponse () Bool)
+    | WithdrawAmount String
+    | WithdrawSend
+    | WithdrawResponse (ApiResponse () AccountProcessResult)
+    | DepositAmount String
+    | DepositSend
+    | DepositResponse (ApiResponse () AccountProcessResult)
+    | TransferToAccount AccountId
+    | TransferToAmount String
+    | TransferToSend
+    | TransferToResponse (ApiResponse () AccountProcessResult)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -206,6 +222,16 @@ update msg model =
             { m | data = { oldData | messages = mm (Message message) } }
     in
     case msg of
+        SelectAccount acc ->
+            let
+                oldView =
+                    model.view
+
+                oldAcc =
+                    oldView.accountView
+            in
+            ( { model | view = { oldView | accountView = { oldAcc | opened = Just acc } } }, Cmd.none )
+
         Logout ->
             case model.data.sessionToken of
                 Nothing ->
@@ -391,6 +417,48 @@ update msg model =
                             , Cmd.none
                             )
 
+        CurrentAccountReloaded res ->
+            handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                \loadRes ->
+                    case loadRes of
+                        -- ignore those error cases
+                        NoAccountFound ->
+                            ( model, Cmd.none )
+
+                        NotYourAccount ->
+                            ( model, Cmd.none )
+
+                        LoadResult account ->
+                            let
+                                oldModel =
+                                    notWaiting model
+
+                                oldData =
+                                    oldModel.data
+
+                                oldView =
+                                    oldModel.view
+
+                                oldLoggedInData =
+                                    oldData.loggedInData
+
+                                oldMyAccounts =
+                                    oldLoggedInData.myAccounts
+                            in
+                            ( { oldModel
+                                | data =
+                                    { oldData
+                                        | loggedInData =
+                                            { oldLoggedInData
+                                                | myAccounts =
+                                                    Dict.insert account.id account oldMyAccounts
+                                            }
+                                    }
+                                , view = { oldView | accountView = { emptyAccountViewModel | opened = Just account } }
+                              }
+                            , Cmd.none
+                            )
+
         AllUsersLoaded res ->
             case model.data.sessionToken of
                 Nothing ->
@@ -448,6 +516,285 @@ update msg model =
                       }
                     , Cmd.none
                     )
+
+        NewAccountName name ->
+            let
+                oldView =
+                    model.view
+
+                oldAccView =
+                    oldView.accountView
+            in
+            ( { model | view = { oldView | accountView = { oldAccView | newAccountName = name } } }, Cmd.none )
+
+        WithdrawAmount text ->
+            case String.toInt text of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just num ->
+                    if num < 0 then
+                        ( model, Cmd.none )
+
+                    else
+                        let
+                            oldView =
+                                model.view
+
+                            oldAccView =
+                                oldView.accountView
+                        in
+                        ( { model | view = { oldView | accountView = { oldAccView | withdrawAmount = num } } }, Cmd.none )
+
+        DepositAmount text ->
+            case String.toInt text of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just num ->
+                    if num < 0 then
+                        ( model, Cmd.none )
+
+                    else
+                        let
+                            oldView =
+                                model.view
+
+                            oldAccView =
+                                oldView.accountView
+                        in
+                        ( { model | view = { oldView | accountView = { oldAccView | depositAmount = num } } }, Cmd.none )
+
+        TransferToAccount account ->
+            let
+                oldView =
+                    model.view
+
+                oldAccView =
+                    oldView.accountView
+            in
+            ( { model | view = { oldView | accountView = { oldAccView | transferAccount = account } } }, Cmd.none )
+
+        TransferToAmount text ->
+            case String.toInt text of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just num ->
+                    if num < 0 then
+                        ( model, Cmd.none )
+
+                    else
+                        let
+                            oldView =
+                                model.view
+
+                            oldAccView =
+                                oldView.accountView
+                        in
+                        ( { model | view = { oldView | accountView = { oldAccView | transferAmount = num } } }, Cmd.none )
+
+        NewAccountSend ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    ( waiting model
+                    , Api.accountOpen NewAccountResponse sessionToken <| AccountOpen model.view.accountView.newAccountName
+                    )
+
+        NewAccountResponse res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                        \accountId ->
+                            ( model
+                            , Api.loadAccount accountId CurrentAccountReloaded sessionToken
+                            )
+
+        CloseAccountSend ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    case model.view.accountView.opened of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just account ->
+                            ( waiting model
+                            , Api.closeAccount account.id CloseAccountResponse sessionToken ()
+                            )
+
+        CloseAccountResponse res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                        \_ ->
+                            case model.view.accountView.opened of
+                                Nothing ->
+                                    ( model, Cmd.none )
+
+                                Just account ->
+                                    ( waiting model
+                                    , Api.loadAccount account.id CurrentAccountReloaded sessionToken
+                                    )
+
+        WithdrawSend ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    case model.view.accountView.opened of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just accData ->
+                            ( waiting model, Api.processEvent accData.id WithdrawResponse sessionToken <| WithdrewIn model.view.accountView.withdrawAmount )
+
+        WithdrawResponse res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occured") (withGlobalError (notWaiting model)) <|
+                        \processResult ->
+                            case processResult of
+                                NotYourAccountToModify ->
+                                    withError (notWaiting model) WithdrawError [ "Not your account!" ]
+
+                                NotEnoughBalance ->
+                                    withError (notWaiting model) WithdrawError [ "Not enough balance" ]
+
+                                AccountClosed Yours ->
+                                    withError (notWaiting model) WithdrawError [ "Your account was already closed" ]
+
+                                AccountClosed Theirs ->
+                                    withError (notWaiting model) WithdrawError [ "Their account was closed" ]
+
+                                AccountDoesNotExist Yours ->
+                                    withError (notWaiting model) WithdrawError [ "Your account does not exist" ]
+
+                                AccountDoesNotExist Theirs ->
+                                    withError (notWaiting model) WithdrawError [ "Their account does not exist" ]
+
+                                AccountOk ->
+                                    case model.view.accountView.opened of
+                                        Nothing ->
+                                            ( model, Cmd.none )
+
+                                        Just acc ->
+                                            ( model, Api.loadAccount acc.id CurrentAccountReloaded sessionToken )
+
+        DepositSend ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    case model.view.accountView.opened of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just accData ->
+                            ( model
+                            , Api.processEvent accData.id DepositResponse sessionToken <| DepositedIn model.view.accountView.depositAmount
+                            )
+
+        DepositResponse res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occured") (withGlobalError (notWaiting model)) <|
+                        \processResult ->
+                            case processResult of
+                                NotYourAccountToModify ->
+                                    withError (notWaiting model) DepositError [ "Not your account!" ]
+
+                                NotEnoughBalance ->
+                                    withError (notWaiting model) DepositError [ "Not enough balance" ]
+
+                                AccountClosed Yours ->
+                                    withError (notWaiting model) DepositError [ "Your account was already closed" ]
+
+                                AccountClosed Theirs ->
+                                    withError (notWaiting model) DepositError [ "Their account was closed" ]
+
+                                AccountDoesNotExist Yours ->
+                                    withError (notWaiting model) DepositError [ "Your account does not exist" ]
+
+                                AccountDoesNotExist Theirs ->
+                                    withError (notWaiting model) DepositError [ "Their account does not exist" ]
+
+                                AccountOk ->
+                                    case model.view.accountView.opened of
+                                        Nothing ->
+                                            ( model, Cmd.none )
+
+                                        Just acc ->
+                                            ( model, Api.loadAccount acc.id CurrentAccountReloaded sessionToken )
+
+        TransferToSend ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    case model.view.accountView.opened of
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                        Just accData ->
+                            ( model
+                            , Api.processEvent accData.id TransferToResponse sessionToken <| TransferToIn model.view.accountView.transferAccount model.view.accountView.transferAmount
+                            )
+
+        TransferToResponse res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occured") (withGlobalError (notWaiting model)) <|
+                        \processResult ->
+                            case processResult of
+                                NotYourAccountToModify ->
+                                    withError (notWaiting model) TransferToError [ "Not your account!" ]
+
+                                NotEnoughBalance ->
+                                    withError (notWaiting model) TransferToError [ "Not enough balance" ]
+
+                                AccountClosed Yours ->
+                                    withError (notWaiting model) TransferToError [ "Your account was already closed" ]
+
+                                AccountClosed Theirs ->
+                                    withError (notWaiting model) TransferToError [ "Their account was closed" ]
+
+                                AccountDoesNotExist Yours ->
+                                    withError (notWaiting model) TransferToError [ "Your account does not exist" ]
+
+                                AccountDoesNotExist Theirs ->
+                                    withError (notWaiting model) TransferToError [ "Their account does not exist" ]
+
+                                AccountOk ->
+                                    case model.view.accountView.opened of
+                                        Nothing ->
+                                            ( model, Cmd.none )
+
+                                        Just acc ->
+                                            ( model, Api.loadAccount acc.id CurrentAccountReloaded sessionToken )
 
 
 loadAccountData : Token -> Cmd Msg
@@ -587,6 +934,7 @@ header model =
             [ left (px 0)
             , right (px 0)
             , fontSize (C.em 1.2)
+            , zIndex (int 10)
             , backgroundColor <| hex "#a9a9a9"
             , displayFlex
             , justifyContent spaceBetween
@@ -609,16 +957,37 @@ header model =
                 ]
 
 
+globalError : Model -> List (Html msg)
+globalError model =
+    case model.data.messages of
+        GlobalError errors ->
+            [ div
+                [ css
+                    [ left (px 0)
+                    , right (px 0)
+                    , backgroundColor <| hex "#af0000"
+                    ]
+                ]
+                (h1 [] [ text "ERRORS" ] :: (List.intersperse (br [] []) <| List.map text errors))
+            ]
+
+        _ ->
+            []
+
+
 body : Model -> List (Html Msg)
 body model =
-    header model
-        :: (case model.view.visiblePage of
-                LoginPage ->
-                    loginForm model
+    [ header model
+    , div [] <| globalError model
+    , Html.main_ []
+        (case model.view.visiblePage of
+            LoginPage ->
+                loginForm model
 
-                AccountsPage ->
-                    accountsPage model
-           )
+            AccountsPage ->
+                accountsPage model
+        )
+    ]
 
 
 displayMessage : Message -> List (Html Never)
@@ -668,8 +1037,251 @@ loginForm model =
 
 
 accountsPage : Model -> List (Html Msg)
-accountsPage _ =
-    []
+accountsPage model =
+    let
+        isSelected account =
+            case model.view.accountView.opened of
+                Nothing ->
+                    False
+
+                Just sel ->
+                    account == sel
+
+        isClosed account =
+            case List.head account.history of
+                Nothing ->
+                    False
+
+                Just h ->
+                    h.event == Closed
+
+        sidebarEntry : AccountData -> Html Msg
+        sidebarEntry account =
+            div
+                [ css
+                    ([ if isSelected account then
+                        backgroundColor (hex "#9a9a9a")
+
+                       else if isClosed account then
+                        backgroundColor (hex "#4f4f4f")
+
+                       else
+                        backgroundColor (hex "#c9c9c9")
+                     , cursor pointer
+                     , padding2 (px 5) (px 0)
+                     ]
+                        ++ (if isClosed account then
+                                [ color <| hex "#d2d2d2" ]
+
+                            else
+                                []
+                           )
+                    )
+                , onClick (SelectAccount account)
+                ]
+                [ text <|
+                    account.name
+                        ++ " ("
+                        ++ (if isClosed account then
+                                "Closed"
+
+                            else
+                                String.fromInt account.balance
+                           )
+                        ++ ")"
+                ]
+
+        sidebar =
+            nav
+                [ css
+                    [ C.width (vw 20)
+                    , top (px 32)
+                    , bottom (px 0)
+                    , zIndex (int -1)
+                    , position absolute
+                    , borderRight3 (px 2) solid (hex "#7f7f7f")
+                    ]
+                ]
+                (if Dict.isEmpty model.data.loggedInData.myAccounts then
+                    [ Html.i [] [ text "No accounts..." ] ]
+
+                 else
+                    List.map sidebarEntry <| Dict.values model.data.loggedInData.myAccounts
+                )
+
+        mainContent =
+            div
+                [ css
+                    [ left (vw 20)
+                    , right (px 0)
+                    , position absolute
+                    ]
+                ]
+                (createNewAccountForm model
+                    :: (case model.view.accountView.opened of
+                            Nothing ->
+                                [ h2 [] [ text "No account loaded" ] ]
+
+                            Just acc ->
+                                if isClosed acc then
+                                    [ accountHistory model acc ]
+
+                                else
+                                    List.map (\x -> x model acc) [ closeForm, withdrawForm, depositForm, transferForm, accountHistory ]
+                       )
+                )
+    in
+    [ sidebar, mainContent ]
+
+
+createNewAccountForm : Model -> Html Msg
+createNewAccountForm model =
+    div [ css [ margin2 (px 10) (px 0) ] ]
+        [ input model [ type_ "text", name "newAccountName", placeholder "New Account name...", value model.view.accountView.newAccountName, onInput NewAccountName ]
+        , centeredButton model [ onClick NewAccountSend ] [ text "Create Account" ]
+        ]
+
+
+closeForm : Model -> AccountData -> Html Msg
+closeForm model _ =
+    div []
+        [ centeredButton model [ onClick CloseAccountSend ] [ text "Close Account" ]
+        ]
+
+
+withdrawForm : Model -> AccountData -> Html Msg
+withdrawForm model accountData =
+    div []
+        [ input model [ type_ "text", placeholder "Amount", value <| String.fromInt model.view.accountView.withdrawAmount, onInput WithdrawAmount ]
+        , centeredButton model [ onClick WithdrawSend ] [ text "Withdraw" ]
+        ]
+
+
+depositForm : Model -> AccountData -> Html Msg
+depositForm model accountData =
+    div []
+        [ input model [ type_ "text", placeholder "Amount", value <| String.fromInt model.view.accountView.depositAmount, onInput DepositAmount ]
+        , centeredButton model [ onClick DepositSend ] [ text "Deposit" ]
+        ]
+
+
+transferForm : Model -> AccountData -> Html Msg
+transferForm model accountData =
+    let
+        options =
+            List.map
+                (\( ( _, username ), accs ) ->
+                    optgroup [ Att.property "label" (Json.string username) ]
+                        (List.map
+                            (\( accId, accName ) ->
+                                option
+                                    [ value accId, selected (accId == model.view.accountView.transferAccount) ]
+                                    [ text accName ]
+                            )
+                            accs
+                        )
+                )
+                (Dict.toList model.data.loggedInData.allAccounts)
+    in
+    div []
+        [ select [ value model.view.accountView.transferAccount, onInput TransferToAccount ]
+            (option [ Att.disabled True, value "" ] [ text "Select..." ] :: options)
+        , input model [ type_ "text", placeholder "Amount", value <| String.fromInt model.view.accountView.transferAmount, onInput TransferToAmount ]
+        , centeredButton model [ onClick TransferToSend ] [ text "Transfer" ]
+        ]
+
+
+accountHistory : Model -> AccountData -> Html Msg
+accountHistory model accountData =
+    let
+        historyRow : TimedEvent -> Html Msg
+        historyRow timedEvent =
+            tr []
+                [ td [] [ text <| toIsoString <| timedEvent.time ]
+                , td []
+                    [ text <|
+                        case timedEvent.event of
+                            Opened name ->
+                                "Opened " ++ name
+
+                            Deposited amount ->
+                                "Deposited " ++ String.fromInt amount
+
+                            Withdrew amount ->
+                                "Withdrew " ++ String.fromInt amount
+
+                            TransferTo accountId amount ->
+                                "Transferred " ++ String.fromInt amount ++ " to " ++ accountId
+
+                            TransferFrom accountId amount ->
+                                "Transferred " ++ String.fromInt amount ++ " from " ++ accountId
+
+                            Closed ->
+                                "Closed Account."
+                    ]
+                ]
+    in
+    Html.table
+        [ css
+            [ C.width (pct 80)
+            , margin2 (px 0) (pct 8)
+            ]
+        ]
+        (List.map historyRow accountData.history)
+
+
+toIsoString : Time.Posix -> String
+toIsoString time =
+    let
+        monthToInt month =
+            case month of
+                Jan ->
+                    1
+
+                Feb ->
+                    2
+
+                Mar ->
+                    3
+
+                Apr ->
+                    4
+
+                May ->
+                    5
+
+                Jun ->
+                    6
+
+                Jul ->
+                    7
+
+                Aug ->
+                    8
+
+                Sep ->
+                    9
+
+                Oct ->
+                    10
+
+                Nov ->
+                    11
+
+                Dec ->
+                    12
+    in
+    (String.padLeft 4 '0' <| String.fromInt (toYear utc time))
+        ++ "-"
+        ++ (String.padLeft 2 '0' <| String.fromInt <| monthToInt (toMonth utc time))
+        ++ "-"
+        ++ (String.padLeft 2 '0' <| String.fromInt (toDay utc time))
+        ++ " "
+        ++ (String.padRight 2 '0' <| String.fromInt (toHour utc time))
+        ++ ":"
+        ++ (String.padRight 2 '0' <| String.fromInt (toMinute utc time))
+        ++ ":"
+        ++ (String.padRight 2 '0' <| String.fromInt (toSecond utc time))
 
 
 clickable : Model -> Cursor {}
@@ -757,5 +1369,5 @@ main =
         { view = view
         , init = \_ -> init
         , update = update
-        , subscriptions = always Sub.none -- subscriptions
+        , subscriptions = subscriptions
         }
