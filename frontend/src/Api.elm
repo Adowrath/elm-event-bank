@@ -65,9 +65,9 @@ authLogout =
     sauthPost "/api/auth/logout" (\_ -> E.object []) <| D.succeed ()
 
 
-authAllUsers : SecureAuthPost (List ( UserId, String )) () msg
+authAllUsers : SecureAuthGet (List ( UserId, String )) msg
 authAllUsers =
-    sauthPost "/api/users" (\_ -> E.object []) <| D.list <| elmStreetDecodePair D.string D.string
+    sauthGet "/api/users" <| D.list <| elmStreetDecodePair D.string D.string
 
 
 
