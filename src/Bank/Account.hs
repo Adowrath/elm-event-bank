@@ -20,7 +20,7 @@ import qualified Web.Scotty.Trans          as S
 
 type ElmTypes = '[AccountOpen]
 
-newtype AccountOpen = AccountOpen Text
+data AccountOpen = AccountOpen { accountOpen :: Text }
   deriving stock (Generic)
   deriving (FromJSON, Elm) via ElmStreet AccountOpen
 
