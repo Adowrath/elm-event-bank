@@ -113,7 +113,7 @@ runAccountServiceInMemory accountStorage = interpret \case
               if balance yourAccount < amount
               then return NotEnoughBalance
               else do
-                Map.lookup accountId accounts & \case
+                Map.lookup otherAccount accounts & \case
                   Nothing -> return $ AccountDoesNotExist Theirs
                   Just (_, theirTVar) -> onlyUnclosed theirTVar >>= \case
                     Nothing -> return $ AccountClosed Theirs
