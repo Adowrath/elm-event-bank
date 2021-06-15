@@ -29,7 +29,7 @@ type alias DataModel =
     , sessionToken : Maybe String
     , username : Maybe String
     , isWaiting : Bool
-    , loggedInData : Maybe LoggedInData
+    , loggedInData : LoggedInData
     , messages : Messages
     }
 
@@ -37,6 +37,7 @@ type alias DataModel =
 type Messages
     = NoMessages
     | LoginMessages Message
+    | AnyError String
 
 
 type Message
@@ -44,9 +45,13 @@ type Message
     | Message String
 
 
+type alias PseudoUser =
+    ( UserId, String )
+
+
 type alias LoggedInData =
     { myAccounts : Dict AccountId AccountData
-    , allAccounts : Dict UserId (List AccountId)
+    , allAccounts : Dict PseudoUser (List ( AccountId, String ))
     }
 
 
@@ -89,7 +94,10 @@ init =
             , sessionToken = Nothing
             , username = Nothing
             , isWaiting = False
-            , loggedInData = Nothing
+            , loggedInData =
+                { myAccounts = Dict.empty
+                , allAccounts = Dict.empty
+                }
             , messages = NoMessages
             }
       , view =
@@ -128,6 +136,10 @@ type Msg
     | RefreshSessionResponse (ApiResponse AuthError Token)
       -- Data messages
     | LoadAllData
+    | MyAccountsLoaded (ApiResponse () (List ( AccountId, String )))
+    | AllUsersLoaded (ApiResponse AuthError (List ( UserId, String )))
+    | MyAccountLoaded (ApiResponse () AccountLoadResult)
+    | ForeignAccountsLoaded PseudoUser (ApiResponse () (List ( AccountId, String )))
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -200,8 +212,30 @@ update msg model =
         LoginResponse res ->
             handleApiResponse res authErrorToText (withError (notWaiting model) LoginMessages) <|
                 \tokensPair ->
-                    -- TODO
-                    ( notWaiting model, Cmd.none )
+                    let
+                        oldModel =
+                            withoutMessages model
+
+                        oldData =
+                            oldModel.data
+
+                        oldView =
+                            oldModel.view
+                    in
+                    ( { oldModel
+                        | data =
+                            { oldData
+                                | sessionToken = Just tokensPair.session
+                                , refreshToken = Just tokensPair.refresh
+                                , username = Just model.view.loginData.username
+                            }
+                        , view =
+                            { oldView
+                                | visiblePage = AccountsPage
+                            }
+                      }
+                    , loadAccountData tokensPair.session
+                    )
 
         RegisterSend ->
             ( withoutMessages <| waiting model
@@ -218,6 +252,18 @@ update msg model =
 
         _ ->
             ( model, Cmd.none )
+
+
+loadAccountData : Token -> Cmd Msg
+loadAccountData sessionToken =
+    let
+        loadMyAccounts =
+            Api.myAccounts MyAccountsLoaded sessionToken
+
+        loadAllUsers =
+            Api.authAllUsers AllUsersLoaded sessionToken
+    in
+    Cmd.batch [ loadMyAccounts, loadAllUsers ]
 
 
 handleApiResponse :
