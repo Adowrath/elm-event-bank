@@ -37,7 +37,7 @@ type alias DataModel =
 type Messages
     = NoMessages
     | LoginMessages Message
-    | AnyError String
+    | GlobalError (List String)
 
 
 type Message
@@ -53,6 +53,11 @@ type alias LoggedInData =
     { myAccounts : Dict AccountId AccountData
     , allAccounts : Dict PseudoUser (List ( AccountId, String ))
     }
+
+
+emptyLoggedInData : LoggedInData
+emptyLoggedInData =
+    { myAccounts = Dict.empty, allAccounts = Dict.empty }
 
 
 type alias ViewModel =
@@ -71,6 +76,11 @@ type alias LoginDataModel =
     { username : String, password : String }
 
 
+emptyLoginDataModel : LoginDataModel
+emptyLoginDataModel =
+    { username = "", password = "" }
+
+
 type alias AccountViewModel =
     { opened : Maybe ( AccountData, AccountViewOpenedForm )
     , newAccountName : String
@@ -78,6 +88,17 @@ type alias AccountViewModel =
     , depositAmount : Maybe Int
     , transferUserSelected : Maybe String
     , transferAmount : Maybe Int
+    }
+
+
+emptyAccountViewModel : AccountViewModel
+emptyAccountViewModel =
+    { opened = Nothing
+    , newAccountName = ""
+    , withdrawAmount = Nothing
+    , depositAmount = Nothing
+    , transferUserSelected = Nothing
+    , transferAmount = Nothing
     }
 
 
@@ -94,23 +115,13 @@ init =
             , sessionToken = Nothing
             , username = Nothing
             , isWaiting = False
-            , loggedInData =
-                { myAccounts = Dict.empty
-                , allAccounts = Dict.empty
-                }
+            , loggedInData = emptyLoggedInData
             , messages = NoMessages
             }
       , view =
             { visiblePage = LoginPage
-            , loginData = { username = "", password = "" }
-            , accountView =
-                { opened = Nothing
-                , newAccountName = ""
-                , withdrawAmount = Nothing
-                , depositAmount = Nothing
-                , transferUserSelected = Nothing
-                , transferAmount = Nothing
-                }
+            , loginData = emptyLoginDataModel
+            , accountView = emptyAccountViewModel
             }
       }
     , Cmd.none
@@ -137,8 +148,8 @@ type Msg
       -- Data messages
     | LoadAllData
     | MyAccountsLoaded (ApiResponse () (List ( AccountId, String )))
-    | AllUsersLoaded (ApiResponse AuthError (List ( UserId, String )))
     | MyAccountLoaded (ApiResponse () AccountLoadResult)
+    | AllUsersLoaded (ApiResponse AuthError (List ( UserId, String )))
     | ForeignAccountsLoaded PseudoUser (ApiResponse () (List ( AccountId, String )))
 
 
@@ -173,6 +184,20 @@ update msg model =
             in
             ( { m | data = { oldData | messages = em (ErrorMessage errs) } }, Cmd.none )
 
+        withGlobalError m errs =
+            let
+                oldData =
+                    m.data
+            in
+            ( case oldData.messages of
+                GlobalError prevErrs ->
+                    { m | data = { oldData | messages = GlobalError (prevErrs ++ errs) } }
+
+                _ ->
+                    { m | data = { oldData | messages = GlobalError errs } }
+            , Cmd.none
+            )
+
         withMessage m mm message =
             let
                 oldData =
@@ -181,6 +206,21 @@ update msg model =
             { m | data = { oldData | messages = mm (Message message) } }
     in
     case msg of
+        Logout ->
+            case model.data.sessionToken of
+                Nothing ->
+                    -- Ignore
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    ( withoutMessages <| waiting model
+                    , Api.authLogout LogoutResponse sessionToken ()
+                    )
+
+        LogoutResponse res ->
+            -- We ignore any errors and just log out.
+            handleApiResponse res authErrorToText (always init) (always init)
+
         LoginUsername username ->
             let
                 oldView =
@@ -232,6 +272,7 @@ update msg model =
                         , view =
                             { oldView
                                 | visiblePage = AccountsPage
+                                , loginData = emptyLoginDataModel
                             }
                       }
                     , loadAccountData tokensPair.session
@@ -250,8 +291,163 @@ update msg model =
                 \() ->
                     ( withMessage (notWaiting model) LoginMessages "Registration complete", Cmd.none )
 
-        _ ->
-            ( model, Cmd.none )
+        RefreshSession ->
+            case model.data.refreshToken of
+                Nothing ->
+                    -- Ignore
+                    ( model, Cmd.none )
+
+                Just refreshToken ->
+                    ( model
+                    , Api.authRefresh RefreshSessionResponse (SingleToken refreshToken)
+                    )
+
+        RefreshSessionResponse res ->
+            handleApiResponse res authErrorToText (Debug.log "Refresh Error!" >> always init) <|
+                \newSessionToken ->
+                    let
+                        oldModel =
+                            notWaiting model
+
+                        oldData =
+                            oldModel.data
+                    in
+                    ( { oldModel | data = { oldData | sessionToken = Just newSessionToken } }, Cmd.none )
+
+        LoadAllData ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    let
+                        oldModel =
+                            waiting model
+
+                        oldData =
+                            oldModel.data
+
+                        oldView =
+                            oldModel.view
+                    in
+                    ( { oldModel
+                        | data = { oldData | loggedInData = emptyLoggedInData }
+                        , view = { oldView | accountView = emptyAccountViewModel }
+                      }
+                    , loadAccountData sessionToken
+                    )
+
+        MyAccountsLoaded res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                        \accounts ->
+                            let
+                                loadMyAccount ( accId, _ ) =
+                                    Api.loadAccount accId MyAccountLoaded sessionToken
+                            in
+                            ( model
+                            , Cmd.batch <| List.map loadMyAccount accounts
+                            )
+
+        MyAccountLoaded res ->
+            handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                \loadRes ->
+                    case loadRes of
+                        -- ignore those error cases
+                        NoAccountFound ->
+                            ( model, Cmd.none )
+
+                        NotYourAccount ->
+                            ( model, Cmd.none )
+
+                        LoadResult account ->
+                            let
+                                oldModel =
+                                    notWaiting model
+
+                                oldData =
+                                    oldModel.data
+
+                                oldLoggedInData =
+                                    oldData.loggedInData
+
+                                oldMyAccounts =
+                                    oldLoggedInData.myAccounts
+                            in
+                            ( { oldModel
+                                | data =
+                                    { oldData
+                                        | loggedInData =
+                                            { oldLoggedInData
+                                                | myAccounts =
+                                                    Dict.insert account.id account oldMyAccounts
+                                            }
+                                    }
+                              }
+                            , Cmd.none
+                            )
+
+        AllUsersLoaded res ->
+            case model.data.sessionToken of
+                Nothing ->
+                    ( model, Cmd.none )
+
+                Just sessionToken ->
+                    handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                        \accounts ->
+                            let
+                                loadForeignAccounts ( userId, username ) =
+                                    Api.accountsBy userId (ForeignAccountsLoaded ( userId, username )) sessionToken
+                            in
+                            ( model
+                            , Cmd.batch <| List.map loadForeignAccounts accounts
+                            )
+
+        ForeignAccountsLoaded pseudoUser res ->
+            handleApiResponse res (always "An error has occurred") (withGlobalError (notWaiting model)) <|
+                \accounts ->
+                    let
+                        oldModel =
+                            notWaiting model
+
+                        oldData =
+                            oldModel.data
+
+                        oldLoggedInData =
+                            oldData.loggedInData
+
+                        oldAllAccounts =
+                            oldLoggedInData.allAccounts
+
+                        updateAccounts ( accountId, accountName ) =
+                            Dict.update pseudoUser <|
+                                \existing ->
+                                    case existing of
+                                        Nothing ->
+                                            Just [ ( accountId, accountName ) ]
+
+                                        Just existingAccounts ->
+                                            Just (( accountId, accountName ) :: existingAccounts)
+
+                        newAccounts =
+                            List.foldl updateAccounts oldAllAccounts accounts
+                    in
+                    -- | ForeignAccountsLoaded PseudoUser (ApiResponse () (List ( AccountId, String )))
+                    ( { oldModel
+                        | data =
+                            { oldData
+                                | loggedInData =
+                                    { oldLoggedInData
+                                        | allAccounts = newAccounts
+                                    }
+                            }
+                      }
+                    , Cmd.none
+                    )
 
 
 loadAccountData : Token -> Cmd Msg
