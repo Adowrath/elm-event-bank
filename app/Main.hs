@@ -89,7 +89,7 @@ main = do
   initializedRunner <- runServer key_file
 
   putTextLn "Starting backend..."
-  scottyThread <- forkIO $ runApp server_port frontend_port $ initializedRunner
+  scottyThread <- forkIO $ runApp server_port frontend_port initializedRunner
 
   let terminate :: Bool -> IO ()
       terminate goodTerminate = do

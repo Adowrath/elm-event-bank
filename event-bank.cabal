@@ -19,6 +19,7 @@ extra-source-files:
 
 library
   exposed-modules:
+      Bank.Account
       Bank.Auth
       Bank.Data
       Bank.Entrypoint
