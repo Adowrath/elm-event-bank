@@ -88,12 +88,13 @@ createAccount = do
 
   newUuid <- liftIO UUID.nextRandom
   hashedPw <- hashPw password
-  lift $ storeUser $ User newUuid username hashedPw Nothing
+  lift $ storeUser $ User (UserId newUuid) username hashedPw Nothing
   answerOk ()
 
-authenticate :: (Members '[UserService, JwtAccess] r, MonadIO (Sem r))
-  => (User -> MyAction r ())
-  -> MyAction r ()
+authenticate ::
+  (Members '[UserService, JwtAccess] r, MonadIO (Sem r)) =>
+  (User -> MyAction r ()) ->
+  MyAction r ()
 authenticate action = do
   auth <- whenNothingM (S.header "Authorization") $ failUserError forbidden403 NotLoggedIn
   fullToken <- whenNothing (T.stripPrefix "Bearer" (toText auth)) $ failUserError forbidden403 NotBearerAuthenticated
@@ -101,6 +102,12 @@ authenticate action = do
   let jwtToken = SessionToken $ J.Jwt $ encodeUtf8 $ T.strip fullToken
   (user, _) <- loadUserFromToken jwtToken
   action user
+
+listUsers :: (Member UserService r, MonadIO (Sem r)) => User -> MyAction r ()
+listUsers _ = do
+  users <- lift allUsers
+
+  answerOk $ map userId users
 
 -------------------- HELPERS --------------------
 
@@ -113,12 +120,12 @@ loadUserFromToken token = lift (extractClaimData token) >>= either handleError h
   where
     handleError :: TokenError -> MyAction r a
     handleError = \case
-      t@TokenMalformed{} -> failUserError unprocessableEntity422 $ AuthTokenError t
+      t@TokenMalformed {} -> failUserError unprocessableEntity422 $ AuthTokenError t
       other -> failUserError badRequest400 $ AuthTokenError other
 
     handleResult :: CustomClaim typ -> MyAction r (User, CustomClaim typ)
     handleResult claim = do
-      user <- whenNothingM (lift $ loadUser $ sub claim) $ failUserError badRequest400 UserNoLongerExists
+      user <- whenNothingM (lift $ loadUser $ UserId $ sub claim) $ failUserError badRequest400 UserNoLongerExists
 
       ifM
         (checkPairId claim user)
@@ -142,7 +149,7 @@ loadUserFromToken token = lift (extractClaimData token) >>= either handleError h
 
 generateNewTokens :: Members '[UserService, JwtAccess] r => User -> MyAction r ()
 generateNewTokens user = do
-  tokens <- lift $ generateNewTokenPair $ userId user
+  tokens <- lift $ generateNewTokenPair $ coerce $ userId user
   lift $ storeUser (user {refreshToken = Just $ jtRefresh tokens})
   answerOk tokens
 

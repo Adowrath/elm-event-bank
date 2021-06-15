@@ -6,6 +6,7 @@ module Bank.Entrypoint
   )
 where
 
+import qualified Bank.Account                         as Account
 import qualified Bank.Auth                            as Auth
 import qualified Bank.Data                            as Data
 import qualified Bank.Jwt                             as Jwt
@@ -35,12 +36,14 @@ app = do
   S.post "/api/auth/refresh" Auth.refresh
   S.post "/api/auth/logout" $ Auth.authenticate Auth.logout
   S.get "/api/auth/validate" $ Auth.authenticate $ const $ answerOk True
+  S.get "/api/users" $ Auth.authenticate Auth.listUsers
 
---  S.post "/api/account/open" $ Auth.authenticate Account.open
---  S.get "/api/account" $ Auth.authenticate Account.list
---  S.get "/api/account/:id" $ Auth.authenticate Account.get
---  S.post "/api/account/:id" $ Auth.authenticate Account.update
---  S.post "/api/account/:id/close" $ Auth.authenticate Account.close
+  S.post "/api/account/open" $ Auth.authenticate Account.open
+  S.get "/api/account" $ Auth.authenticate Account.listMine
+  S.get "/api/account/by/:user" $ Auth.authenticate Account.listBy
+  S.get "/api/account/:id" $ Auth.authenticate Account.get
+  S.post "/api/account/:id" $ Auth.authenticate Account.update
+  S.post "/api/account/:id/close" $ Auth.authenticate Account.close
 
 waiApp :: (Sem EffectTypes Response -> IO Response) -> IO Application
 waiApp runResponse = S.scottyAppT runResponse app
@@ -67,4 +70,4 @@ type family a ++ b where
   '[] ++ bs = bs
   (a : as) ++ bs = a : as ++ bs
 
-type ElmTypes = Data.ElmTypes ++ Auth.ElmTypes ++ Jwt.ElmTypes
+type ElmTypes = Account.ElmTypes ++ Data.ElmTypes ++ Auth.ElmTypes ++ Jwt.ElmTypes

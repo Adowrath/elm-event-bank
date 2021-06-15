@@ -1,5 +1,6 @@
 module Bank.InMemory
-  ( module Bank.InMemory,
+  ( runUserServiceInMemory,
+    runAccountServiceInMemory
   )
 where
 
@@ -8,15 +9,15 @@ import           Bank.Data        (AccountData (..), AccountEvent (..),
                                    AccountLoadResult (..),
                                    AccountProcessResult (..),
                                    AccountService (..), TimedEvent (..),
-                                   User (..), UserService (..), Whose (..))
+                                   User (..), UserId (..), UserService (..),
+                                   Whose (..))
 import           Data.Time.Clock  (getCurrentTime)
-import           Data.UUID        (UUID)
 import           Data.UUID.V4     (nextRandom)
 import           Polysemy
 import           Relude           hiding (exp)
 import qualified Relude.Extra.Map as Map
 
-runUserServiceInMemory :: forall r a. Member (Embed STM) r => TVar (Map UUID User) -> Sem (UserService : r) a -> Sem r a
+runUserServiceInMemory :: forall r a. Member (Embed STM) r => TVar (Map UserId User) -> Sem (UserService : r) a -> Sem r a
 runUserServiceInMemory userStorage = interpret \case
   -- StoreUser :: User -> UserService m ()
   StoreUser user -> embed $ modifyTVar' userStorage (Map.insert (userId user) user)
@@ -30,7 +31,7 @@ runUserServiceInMemory userStorage = interpret \case
 runAccountServiceInMemory ::
   forall r a.
   Members '[Embed STM, Embed IO] r =>
-  TVar (Map AccountId (UUID, TVar AccountData)) ->
+  TVar (Map AccountId (UserId, TVar AccountData)) ->
   Sem (AccountService : r) a ->
   Sem r a
 runAccountServiceInMemory accountStorage = interpret \case
@@ -67,8 +68,12 @@ runAccountServiceInMemory accountStorage = interpret \case
             writeTVar accountTVar $ account { history = one (TimedEvent currTime Closed) <> history account }
             return True
   -- AccountsBy :: User -> AccountService m [AccountId]
-  AccountsBy User {userId} ->
-    embed @STM $ readTVar accountStorage <&> (map fst . filter ((== userId) . fst . snd) . Map.toPairs)
+  AccountsBy userId -> embed @STM do
+    accountTVars <- readTVar accountStorage <&> (map (snd . snd) . filter ((== userId) . fst . snd) . Map.toPairs)
+
+    accountTVars `forM` \tvar -> do
+      account <- readTVar tvar
+      return (accountId account, accountName account)
   -- LoadAccount :: User -> AccountId -> AccountService m AccountLoadResult
   LoadAccount User {userId} accountId -> embed @STM do
     readTVar accountStorage <&> Map.lookup accountId >>= \case

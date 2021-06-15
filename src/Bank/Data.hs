@@ -3,6 +3,7 @@
 module Bank.Data
   ( -- * Users
     User (..),
+    UserId (..),
     UserService (..),
     storeUser,
     loadUser,
@@ -38,7 +39,10 @@ import           Elm
 import           Polysemy
 import           Relude
 
-type UserId = UUID
+newtype UserId = UserId UUID
+  deriving newtype (FromJSON, ToJSON, Ord, Eq)
+
+instance Elm UserId where toElmDefinition _ = DefPrim ElmString
 
 data User = User
   { userId       :: UserId,
@@ -115,14 +119,15 @@ data AccountProcessResult
 data AccountService m a where
   OpenAccount :: User -> Text -> AccountService m AccountId
   CloseAccount :: User -> AccountId -> AccountService m Bool
-  AccountsBy :: User -> AccountService m [AccountId]
+  AccountsBy :: UserId -> AccountService m [(AccountId, Text)]
   LoadAccount :: User -> AccountId -> AccountService m AccountLoadResult
   ProcessEvent :: User -> AccountId -> AccountEventIn -> AccountService m AccountProcessResult
 
 makeSem ''AccountService
 
 type ElmTypes =
-  '[ AccountEventIn,
+  '[ UserId,
+     AccountEventIn,
      AccountEvent,
      TimedEvent,
      AccountId,
