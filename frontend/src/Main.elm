@@ -26,7 +26,8 @@ type alias Model =
 type alias DataModel =
     { refreshToken : Maybe String
     , sessionToken : Maybe String
-    , isRefreshing : Bool
+    , username : Maybe String
+    , isWaiting : Bool
     , loggedInData : Maybe LoggedInData
     }
 
@@ -40,14 +41,12 @@ type alias LoggedInData =
 type alias ViewModel =
     { visiblePage : VisiblePage
     , loginData : LoginDataModel
-    , registerData : LoginDataModel
     , accountView : AccountViewModel
     }
 
 
 type VisiblePage
     = LoginPage
-    | RegisterPage
     | AccountsPage
 
 
@@ -76,13 +75,13 @@ init =
     ( { data =
             { refreshToken = Nothing
             , sessionToken = Nothing
-            , isRefreshing = False
+            , username = Nothing
+            , isWaiting = False
             , loggedInData = Nothing
             }
       , view =
             { visiblePage = LoginPage
             , loginData = { username = "", password = "" }
-            , registerData = { username = "", password = "" }
             , accountView =
                 { opened = Nothing
                 , newAccountName = ""
@@ -102,12 +101,54 @@ init =
 
 
 type Msg
-    = NoMsg
+    = -- Login messages
+      LoginUsername String
+    | LoginPassword String
+    | LoginSend
+    | LoginResponse (ApiResponse AuthError JwtTokensPair)
+    | RegisterSend
+    | RegisterResponse (ApiResponse AuthError ())
+      -- Session and logout messages
+    | Logout
+    | LogoutResponse (ApiResponse AuthError ())
+    | RefreshSession
+    | RefreshSessionResponse (ApiResponse AuthError Token)
+      -- Data messages
+    | LoadAllData
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
-    ( model, Cmd.none )
+    case msg of
+        LoginUsername username ->
+            let
+                oldView =
+                    model.view
+
+                oldLogin =
+                    oldView.loginData
+            in
+            ( { model | view = { oldView | loginData = { oldLogin | username = username } } }, Cmd.none )
+
+        LoginPassword password ->
+            let
+                oldView =
+                    model.view
+
+                oldLogin =
+                    oldView.loginData
+            in
+            ( { model | view = { oldView | loginData = { oldLogin | password = password } } }, Cmd.none )
+
+        --LoginSend ->
+        {-
+           | LoginSend
+           | LoginResponse (ApiResponse AuthError JwtTokensPair)
+           | RegisterSend
+           | RegisterResponse (ApiResponse AuthError ())
+        -}
+        _ ->
+            ( model, Cmd.none )
 
 
 
@@ -122,36 +163,103 @@ view model =
 
 
 title : Model -> String
-title _ =
-    "Test title"
+title model =
+    case model.data.username of
+        Nothing ->
+            "Login | Elm Event Bank"
+
+        Just name ->
+            name ++ "'s Accounts | Elm Event Bank"
 
 
 {-| TODO Refresh & Logout button
 -}
 header : Model -> Html Msg
 header model =
-    div [] []
+    let
+        clickSpan : Bool -> List (Attribute msg) -> List (Html msg) -> Html msg
+        clickSpan canClick =
+            styled Html.span <|
+                [ padding2 (px 5) (px 10)
+                , backgroundColor <| hex "#909090"
+                ]
+                    ++ (if not canClick then
+                            []
+
+                        else
+                            [ hover
+                                [ backgroundColor <| hex "#7c7c7c"
+                                ]
+                            , cursor <| clickable model
+                            ]
+                       )
+    in
+    div
+        [ css
+            [ left (px 0)
+            , right (px 0)
+            , fontSize (C.em 1.2)
+            , backgroundColor <| hex "#a9a9a9"
+            , displayFlex
+            , justifyContent spaceBetween
+            , alignItems center
+            , flexDirection row
+            ]
+        ]
+    <|
+        case model.data.username of
+            Just username ->
+                [ clickSpan True [ onClick LoadAllData ] [ text "Refresh" ]
+                , clickSpan False [] [ text <| "Elm Event Bank | " ++ username ]
+                , clickSpan True [ onClick Logout ] [ text "Logout" ]
+                ]
+
+            Nothing ->
+                [ Html.span [] []
+                , clickSpan False [] [ text "Elm Event Bank" ]
+                , Html.span [] []
+                ]
 
 
 body : Model -> List (Html Msg)
 body model =
-    [ div []
-        [ img [ src "/logo.svg" ] []
-        , h1 [] [ text "Welcome to the Elm Bank" ]
+    header model
+        :: (case model.view.visiblePage of
+                LoginPage ->
+                    loginForm model
+
+                AccountsPage ->
+                    accountsPage model
+           )
+
+
+loginForm : Model -> List (Html Msg)
+loginForm model =
+    [ p [] [ text "Welcome to the Elm Event Bank.", br [] [], text "Please register an account or log into your existing one." ]
+    , div []
+        [ input [ type_ "text", name "username", placeholder "Username", value model.view.loginData.username, onInput LoginUsername ] []
+        , br [] []
+        , input [ type_ "password", name "password", placeholder "Password", value model.view.loginData.password, onInput LoginPassword ] []
+        , br [] []
+        , centeredButton model [ onClick LoginSend ] [ text "Login" ]
+        , br [] []
+        , centeredButton model [ onClick RegisterSend ] [ text "Register" ]
         ]
     ]
 
 
+accountsPage : Model -> List (Html Msg)
+accountsPage _ =
+    []
 
---loginForm : String -> LoginDataModel -> Html LoginMsg
---loginForm sendText model =
---    Html.form [ onSubmit Send ]
---        [ input [ type_ "text", name "username", placeholder "Username", value model.username, onInput Username ] []
---        , br [] []
---        , input [ type_ "password", name "password", placeholder "Password", value model.password, onInput Password ] []
---        , br [] []
---        , centeredButton [ type_ "submit" ] [ text sendText ]
---        ]
+
+clickable : Model -> Cursor {}
+clickable model =
+    if model.data.isWaiting then
+        notAllowed
+
+    else
+        pointer
 
 
 input : List (Attribute msg) -> List (Html msg) -> Html msg
@@ -174,8 +282,8 @@ input =
         ]
 
 
-centeredButton : List (Attribute msg) -> List (Html msg) -> Html msg
-centeredButton =
+centeredButton : Model -> List (Attribute msg) -> List (Html msg) -> Html msg
+centeredButton model =
     styled Html.button
         [ backgroundImage <| linearGradient (stop <| hex "#007aaa") (stop <| hex "#007fff") []
         , border3 (px 1) solid <| hex "#007fff"
@@ -183,25 +291,31 @@ centeredButton =
             [ backgroundImage <| linearGradient (stop <| hex "#007888") (stop <| hex "#007ddd") []
             , border3 (px 1) solid <| hex "#007ddd"
             ]
-        , marginLeft auto
         , textAlign center
         , padding2 (px 5) (px 20)
+        , margin2 (px 5) (px 0)
         , borderRadius (px 10)
-        , color <| hex "dedede"
+        , color <| hex "#dedede"
         , fontFamily monospace
+        , cursor <| clickable model
         ]
 
 
 
 ---- SUBSCRIPTIONS ----
---subscriptions : Model -> Sub Msg
---subscriptions model =
---    case model.data.refreshToken of
---        Nothing ->
---            Sub.none
---
---        Just _ ->
---            Time.every (1000 * 60 * 10) <| always (DataMsg RefreshToken)
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    case model.data.refreshToken of
+        Nothing ->
+            Sub.none
+
+        Just _ ->
+            Time.every (1000 * 60 * 10) <| always RefreshSession
+
+
+
 ---- PROGRAM ----
 
 
