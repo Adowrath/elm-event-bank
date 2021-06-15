@@ -107,7 +107,7 @@ listUsers :: (Member UserService r, MonadIO (Sem r)) => User -> MyAction r ()
 listUsers _ = do
   users <- lift allUsers
 
-  answerOk $ map userId users
+  answerOk $ map (\user -> (userId user, userUsername user)) users
 
 -------------------- HELPERS --------------------
 

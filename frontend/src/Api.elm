@@ -2,6 +2,7 @@ module Api exposing (..)
 
 import ApiImpl exposing (..)
 import Generated.Decoder exposing (decodeAccountLoadResult, decodeAccountProcessResult, decodeAuthError, decodeJwtTokensPair)
+import Generated.ElmStreet exposing (elmStreetDecodePair)
 import Generated.Encoder exposing (encodeAccountEventIn, encodeAccountOpen, encodeLoginData, encodeSingleToken)
 import Generated.Types exposing (AccountEventIn, AccountLoadResult, AccountOpen, AccountProcessResult, AuthError, JwtTokensPair, LoginData, SingleToken, TokenError)
 import Http as Http exposing (Expect, expectStringResponse, header)
@@ -40,6 +41,10 @@ sauthGet =
     sapiGet decodeAuthError
 
 
+type alias UserId =
+    String
+
+
 authLogin : AuthPost JwtTokensPair LoginData msg
 authLogin =
     authPost "/api/auth/login" encodeLoginData decodeJwtTokensPair
@@ -60,35 +65,37 @@ authLogout =
     sauthPost "/api/auth/logout" (\_ -> E.object []) <| D.succeed ()
 
 
-authAllUsers : SecureAuthPost (List String) () msg
+authAllUsers : SecureAuthPost (List ( UserId, String )) () msg
 authAllUsers =
-    sauthPost "/api/users" (\_ -> E.object []) <| D.list D.string
+    sauthPost "/api/users" (\_ -> E.object []) <| D.list <| elmStreetDecodePair D.string D.string
 
 
 
 ---------- ACCOUNT ROUTES ----------
 
 
-accountOpen : SecurePost () String AccountOpen msg
+type alias AccountId =
+    String
+
+
+accountOpen : SecurePost () AccountId AccountOpen msg
 accountOpen =
     sapiPost (D.succeed ()) "/api/account/open" encodeAccountOpen D.string
 
 
-closeAccount :
-    String
-    -> SecurePost () Bool String msg
+closeAccount : AccountId -> SecurePost () Bool () msg
 closeAccount id =
-    sapiPost (D.succeed ()) ("/api/account/" ++ id ++ "/close") E.string D.bool
+    sapiPost (D.succeed ()) ("/api/account/" ++ id ++ "/close") (\_ -> E.object []) D.bool
 
 
-myAccounts : SecureGet () (List String) msg
+myAccounts : SecureGet () (List ( AccountId, String )) msg
 myAccounts =
-    sapiGet (D.succeed ()) "/api/account" (D.list D.string)
+    sapiGet (D.succeed ()) "/api/account" (D.list <| elmStreetDecodePair D.string D.string)
 
 
-accountsBy : String -> SecureGet () (List String) msg
+accountsBy : String -> SecureGet () (List ( AccountId, String )) msg
 accountsBy id =
-    sapiGet (D.succeed ()) ("/api/account/by/" ++ id) (D.list D.string)
+    sapiGet (D.succeed ()) ("/api/account/by/" ++ id) (D.list <| elmStreetDecodePair D.string D.string)
 
 
 loadAccount : String -> SecureGet () AccountLoadResult msg
