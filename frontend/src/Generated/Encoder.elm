@@ -8,7 +8,10 @@ import Generated.Types as T
 
 
 encodeAccountOpen : T.AccountOpen -> Value
-encodeAccountOpen = E.string << T.unAccountOpen
+encodeAccountOpen x = E.object
+    [ ("tag", E.string "AccountOpen")
+    , ("accountOpen", E.string x.accountOpen)
+    ]
 
 
 

@@ -3,11 +3,9 @@ module Generated.Types exposing (..)
 import Time exposing (Posix)
 
 
-type AccountOpen
-    = AccountOpen String
-
-unAccountOpen : AccountOpen -> String
-unAccountOpen (AccountOpen x) = x
+type alias AccountOpen =
+    { accountOpen : String
+    }
 
 
 

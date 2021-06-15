@@ -9,7 +9,8 @@ import Generated.Types as T
 
 
 decodeAccountOpen : Decoder T.AccountOpen
-decodeAccountOpen = D.map T.AccountOpen D.string
+decodeAccountOpen = D.succeed T.AccountOpen
+    |> required "accountOpen" D.string
 
 
 
