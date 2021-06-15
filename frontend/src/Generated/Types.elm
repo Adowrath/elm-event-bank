@@ -3,12 +3,25 @@ module Generated.Types exposing (..)
 import Time exposing (Posix)
 
 
+type AccountOpen
+    = AccountOpen String
+
+unAccountOpen : AccountOpen -> String
+unAccountOpen (AccountOpen x) = x
+
+
+
+type AccountEventIn
+    = DepositedIn Int
+    | WithdrewIn Int
+    | TransferToIn String Int
+
 type AccountEvent
     = Opened String
     | Deposited Int
     | Withdrew Int
-    | TransferFrom String Int
     | TransferTo String Int
+    | TransferFrom String Int
     | Closed
 
 type alias TimedEvent =
@@ -38,9 +51,22 @@ universeWhose = [Yours, Theirs]
 
 type AccountProcessResult
     = AccountOk
+    | NotYourAccountToModify
     | NotEnoughBalance
     | AccountClosed Whose
     | AccountDoesNotExist Whose
+
+type alias AccountData =
+    { id : String
+    , name : String
+    , balance : Int
+    , history : List TimedEvent
+    }
+
+type AccountLoadResult
+    = NoAccountFound
+    | NotYourAccount
+    | LoadResult AccountData
 
 type alias LoginData =
     { username : String

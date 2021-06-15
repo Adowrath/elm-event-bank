@@ -8,6 +8,21 @@ import Generated.ElmStreet exposing (..)
 import Generated.Types as T
 
 
+decodeAccountOpen : Decoder T.AccountOpen
+decodeAccountOpen = D.map T.AccountOpen D.string
+
+
+
+decodeAccountEventIn : Decoder T.AccountEventIn
+decodeAccountEventIn =
+    let decide : String -> Decoder T.AccountEventIn
+        decide x = case x of
+            "DepositedIn" -> D.field "contents" <| D.map T.DepositedIn D.int
+            "WithdrewIn" -> D.field "contents" <| D.map T.WithdrewIn D.int
+            "TransferToIn" -> D.field "contents" <| D.map2 T.TransferToIn (D.index 0 D.string) (D.index 1 D.int)
+            c -> D.fail <| "AccountEventIn doesn't have such constructor: " ++ c
+    in D.andThen decide (D.field "tag" D.string)
+
 decodeAccountEvent : Decoder T.AccountEvent
 decodeAccountEvent =
     let decide : String -> Decoder T.AccountEvent
@@ -15,8 +30,8 @@ decodeAccountEvent =
             "Opened" -> D.field "contents" <| D.map T.Opened D.string
             "Deposited" -> D.field "contents" <| D.map T.Deposited D.int
             "Withdrew" -> D.field "contents" <| D.map T.Withdrew D.int
-            "TransferFrom" -> D.field "contents" <| D.map2 T.TransferFrom (D.index 0 D.string) (D.index 1 D.int)
             "TransferTo" -> D.field "contents" <| D.map2 T.TransferTo (D.index 0 D.string) (D.index 1 D.int)
+            "TransferFrom" -> D.field "contents" <| D.map2 T.TransferFrom (D.index 0 D.string) (D.index 1 D.int)
             "Closed" -> D.succeed T.Closed
             c -> D.fail <| "AccountEvent doesn't have such constructor: " ++ c
     in D.andThen decide (D.field "tag" D.string)
@@ -36,10 +51,28 @@ decodeAccountProcessResult =
     let decide : String -> Decoder T.AccountProcessResult
         decide x = case x of
             "AccountOk" -> D.succeed T.AccountOk
+            "NotYourAccountToModify" -> D.succeed T.NotYourAccountToModify
             "NotEnoughBalance" -> D.succeed T.NotEnoughBalance
             "AccountClosed" -> D.field "contents" <| D.map T.AccountClosed decodeWhose
             "AccountDoesNotExist" -> D.field "contents" <| D.map T.AccountDoesNotExist decodeWhose
             c -> D.fail <| "AccountProcessResult doesn't have such constructor: " ++ c
+    in D.andThen decide (D.field "tag" D.string)
+
+decodeAccountData : Decoder T.AccountData
+decodeAccountData = D.succeed T.AccountData
+    |> required "id" D.string
+    |> required "name" D.string
+    |> required "balance" D.int
+    |> required "history" (D.list decodeTimedEvent)
+
+decodeAccountLoadResult : Decoder T.AccountLoadResult
+decodeAccountLoadResult =
+    let decide : String -> Decoder T.AccountLoadResult
+        decide x = case x of
+            "NoAccountFound" -> D.succeed T.NoAccountFound
+            "NotYourAccount" -> D.succeed T.NotYourAccount
+            "LoadResult" -> D.field "contents" <| D.map T.LoadResult decodeAccountData
+            c -> D.fail <| "AccountLoadResult doesn't have such constructor: " ++ c
     in D.andThen decide (D.field "tag" D.string)
 
 decodeLoginData : Decoder T.LoginData
