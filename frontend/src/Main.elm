@@ -8,8 +8,9 @@ import Css.Transitions as CT
 import Dict as Dict exposing (Dict)
 import Generated.Types exposing (..)
 import Html.Styled as Html exposing (..)
-import Html.Styled.Attributes exposing (..)
+import Html.Styled.Attributes as Att exposing (..)
 import Html.Styled.Events exposing (..)
+import Http exposing (Error(..))
 import Time
 
 
@@ -29,7 +30,18 @@ type alias DataModel =
     , username : Maybe String
     , isWaiting : Bool
     , loggedInData : Maybe LoggedInData
+    , messages : Messages
     }
+
+
+type Messages
+    = NoMessages
+    | LoginMessages Message
+
+
+type Message
+    = ErrorMessage (List String)
+    | Message String
 
 
 type alias LoggedInData =
@@ -78,6 +90,7 @@ init =
             , username = Nothing
             , isWaiting = False
             , loggedInData = Nothing
+            , messages = NoMessages
             }
       , view =
             { visiblePage = LoginPage
@@ -119,6 +132,42 @@ type Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
+    let
+        waiting m =
+            let
+                oldData =
+                    m.data
+            in
+            { m | data = { oldData | isWaiting = True } }
+
+        notWaiting m =
+            let
+                oldData =
+                    m.data
+            in
+            { m | data = { oldData | isWaiting = False } }
+
+        withoutMessages m =
+            let
+                oldData =
+                    m.data
+            in
+            { m | data = { oldData | messages = NoMessages } }
+
+        withError m em errs =
+            let
+                oldData =
+                    m.data
+            in
+            ( { m | data = { oldData | messages = em (ErrorMessage errs) } }, Cmd.none )
+
+        withMessage m mm message =
+            let
+                oldData =
+                    m.data
+            in
+            { m | data = { oldData | messages = mm (Message message) } }
+    in
     case msg of
         LoginUsername username ->
             let
@@ -140,15 +189,112 @@ update msg model =
             in
             ( { model | view = { oldView | loginData = { oldLogin | password = password } } }, Cmd.none )
 
-        --LoginSend ->
-        {-
-           | LoginSend
-           | LoginResponse (ApiResponse AuthError JwtTokensPair)
-           | RegisterSend
-           | RegisterResponse (ApiResponse AuthError ())
-        -}
+        LoginSend ->
+            ( withoutMessages <| waiting model
+            , Api.authLogin LoginResponse
+                { username = model.view.loginData.username
+                , password = model.view.loginData.password
+                }
+            )
+
+        LoginResponse res ->
+            handleApiResponse res authErrorToText (withError (notWaiting model) LoginMessages) <|
+                \tokensPair ->
+                    -- TODO
+                    ( notWaiting model, Cmd.none )
+
+        RegisterSend ->
+            ( withoutMessages <| waiting model
+            , Api.authCreate RegisterResponse
+                { username = model.view.loginData.username
+                , password = model.view.loginData.password
+                }
+            )
+
+        RegisterResponse res ->
+            handleApiResponse res authErrorToText (withError (notWaiting model) LoginMessages) <|
+                \() ->
+                    ( withMessage (notWaiting model) LoginMessages "Registration complete", Cmd.none )
+
         _ ->
             ( model, Cmd.none )
+
+
+handleApiResponse :
+    ApiResponse e a
+    -> (e -> String)
+    -> (List String -> answer)
+    -> (a -> answer)
+    -> answer
+handleApiResponse res errToText errH ansH =
+    case res of
+        ApiOk a ->
+            ansH a
+
+        UserError e ->
+            errH <| [ errToText e ]
+
+        OtherError es ->
+            errH es
+
+        ConnectionError e ->
+            errH <|
+                (\x -> [ x ]) <|
+                    case e of
+                        BadUrl s ->
+                            "Bad URL: " ++ s
+
+                        Timeout ->
+                            "Request timed out - Check your connection?"
+
+                        NetworkError ->
+                            "A network error occurred"
+
+                        BadStatus status ->
+                            "A bad status response came in (shouldn't happen): " ++ String.fromInt status
+
+                        BadBody msg ->
+                            "Bad body: " ++ msg
+
+
+authErrorToText : AuthError -> String
+authErrorToText err =
+    case err of
+        UnknownUser ->
+            "User unknown"
+
+        UsernameTaken ->
+            "Username taken"
+
+        WrongPassword ->
+            "Wrong password"
+
+        NotLoggedIn ->
+            "You're not logged in"
+
+        SessionLoggedOut ->
+            "Your session was logged out"
+
+        NotBearerAuthenticated ->
+            "No Bearer Authentication (programming error)"
+
+        UserNoLongerExists ->
+            "Your user no longer exists"
+
+        LoginExpired ->
+            "Your login has expired"
+
+        AuthTokenError (TokenMalformed detail) ->
+            "Internal Token Error: Malformed: " ++ detail
+
+        AuthTokenError TokenUnsigned ->
+            "Internal Token Error: Unsigned"
+
+        AuthTokenError TokenWrongType ->
+            "Internal Token Error: Wrong type"
+
+        AuthTokenError TokenExpired ->
+            "Internal Token Error: Expired"
 
 
 
@@ -233,18 +379,49 @@ body model =
            )
 
 
+displayMessage : Message -> List (Html Never)
+displayMessage message =
+    case message of
+        ErrorMessage errors ->
+            [ ul
+                [ css
+                    [ color <| hex "#af0000"
+                    , display inlineBlock
+                    ]
+                ]
+              <|
+                List.map (\err -> li [] [ text err ]) errors
+            , br [] []
+            ]
+
+        Message msgText ->
+            [ text msgText, br [] [] ]
+
+
 loginForm : Model -> List (Html Msg)
 loginForm model =
+    let
+        displayMessages =
+            case model.data.messages of
+                LoginMessages msg ->
+                    List.map (Html.map never) <| displayMessage msg
+
+                _ ->
+                    []
+    in
     [ p [] [ text "Welcome to the Elm Event Bank.", br [] [], text "Please register an account or log into your existing one." ]
     , div []
-        [ input [ type_ "text", name "username", placeholder "Username", value model.view.loginData.username, onInput LoginUsername ] []
-        , br [] []
-        , input [ type_ "password", name "password", placeholder "Password", value model.view.loginData.password, onInput LoginPassword ] []
-        , br [] []
-        , centeredButton model [ onClick LoginSend ] [ text "Login" ]
-        , br [] []
-        , centeredButton model [ onClick RegisterSend ] [ text "Register" ]
-        ]
+        ([ input model [ type_ "text", name "username", placeholder "Username", value model.view.loginData.username, onInput LoginUsername ]
+         , br [] []
+         , input model [ type_ "password", name "password", placeholder "Password", value model.view.loginData.password, onInput LoginPassword ]
+         , br [] []
+         ]
+            ++ displayMessages
+            ++ [ centeredButton model [ onClick LoginSend ] [ text "Login" ]
+               , br [] []
+               , centeredButton model [ onClick RegisterSend ] [ text "Register" ]
+               ]
+        )
     ]
 
 
@@ -262,8 +439,8 @@ clickable model =
         pointer
 
 
-input : List (Attribute msg) -> List (Html msg) -> Html msg
-input =
+input : Model -> List (Attribute msg) -> Html msg
+input model attrs =
     styled Html.input
         [ padding2 (px 5) (px 10)
         , border3 (px 1) solid <| hex "#7f7f7f"
@@ -280,10 +457,17 @@ input =
             , fontSize (C.em 1.2)
             ]
         ]
+        (if model.data.isWaiting then
+            Att.disabled True :: attrs
+
+         else
+            attrs
+        )
+        []
 
 
 centeredButton : Model -> List (Attribute msg) -> List (Html msg) -> Html msg
-centeredButton model =
+centeredButton model attrs =
     styled Html.button
         [ backgroundImage <| linearGradient (stop <| hex "#007aaa") (stop <| hex "#007fff") []
         , border3 (px 1) solid <| hex "#007fff"
@@ -299,6 +483,12 @@ centeredButton model =
         , fontFamily monospace
         , cursor <| clickable model
         ]
+        (if model.data.isWaiting then
+            Att.disabled True :: attrs
+
+         else
+            attrs
+        )
 
 
 
